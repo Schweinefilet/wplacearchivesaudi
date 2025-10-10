@@ -259,5 +259,4 @@ $sn | ConvertTo-Json -Depth 2 | Set-Content -LiteralPath .\snaps.json -Encoding 
 * **Join fails / partials** → multiple split sets may exist per day; try the newest timestamp stem; keep “force extract” behavior in your joiner to salvage usable tiles.
 * **Pages not updating** → confirm pushes land on `main`, and repo Settings → Pages is set to “Deploy from a branch: main / (root)”.
 
-MIT.
 
