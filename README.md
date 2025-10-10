@@ -2,6 +2,7 @@
 
 Built for **Mecca + Medina archiving purposes on wplace.live for islamwp**.
 Archives are taken from **https://github.com/murolem/wplace-archives**.
+Get pre-processed files in the Releases.
 
 This toolkit:
 - Downloads the latest per-day world-YYYY-MM-DDT... dumps (chooses the latest timestamp per day; grabs split parts).
