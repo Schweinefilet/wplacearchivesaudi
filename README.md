@@ -1,8 +1,3 @@
-Here you go. Download or copy from below.
-
-[Download README.txt](sandbox:/mnt/data/README.txt)
-
-```
 # wplace-archive-tools
 
 **Wplace Archive Viewer for Mecca + Medina** — static site + scripts that download, join, and trim daily world dumps to a small z=11 rectangle over western Saudi Arabia, then publish a browsable timeline.
