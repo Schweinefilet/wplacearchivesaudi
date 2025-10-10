@@ -1,6 +1,6 @@
 # wplace-archive-tools
 
-Built for **Mecca + Medina archiving purposes on wplace.live for islamwp**.
+Built for **Mecca + Medina archiving purposes on wplace.live dedicated to islamwp**.
 Archives are taken from **https://github.com/murolem/wplace-archives**.
 Get pre-processed files in the Releases. (remember to unzip them)
 
