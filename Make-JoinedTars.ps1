@@ -12,7 +12,7 @@ $OUT_ARCH = $OUT_DIR                    # archives live here
 $X_MIN=1243; $X_MAX=1258
 $Y_MIN= 875; $Y_MAX= 904
 
-# Cleanup toggles (only applied for clean OK extracts; partials keep artifacts)
+# Cleanup toggles (only for clean OK extracts; partials keep artifacts)
 $DELETE_SOURCES_AFTER_SUCCESS = $true
 $DELETE_TAR_AFTER_EXTRACT     = $true
 
@@ -21,7 +21,7 @@ $FORCE_EXTRACT_ON_INVALID     = $true
 
 # Date window (inclusive)
 $START_DATE = [datetime]'2025-08-09'
-$END_DATE   = [datetime]'2025-09-16'
+$END_DATE   = [datetime]'2025-08-20'
 # ============================================
 
 $ErrorActionPreference = "Stop"
@@ -196,7 +196,7 @@ function Ensure-Joined([string]$Date, [ref]$UsedSources) {
 
     Write-Host "[JOIN] $Date trying stem '$($g.Stem)' ($(@($parts).Count) parts) -> $dst"
     $tarPath = Join-Parts-Resumable -Parts $parts -OutPath $dst -Date $Date
-    if (Test-TarOk $tarPath)) {
+    if (Test-TarOk $tarPath) {
       $UsedSources.Value = @($parts.FullName); Write-Host "[OK]   $Date verified."; return $tarPath
     } else {
       Write-Host "[FAIL] $Date candidate stem '$($g.Stem)' invalid."
@@ -214,11 +214,11 @@ function Ensure-Joined([string]$Date, [ref]$UsedSources) {
   return $null
 }
 
-# Extract only z=11 rectangle; proceed even on tar errors if FORCE enabled.
 # Returns object: @{ Ok=bool; Partial=bool; Added=int }
 function Extract-Box([string]$ArchivePath, [string]$TilesDir) {
   if (-not (Test-Path -LiteralPath $ArchivePath)) { Write-Host "[FAIL] archive missing: $ArchivePath"; return @{Ok=$false;Partial=$false;Added=0} }
 
+  # Try to list (tar may be non-zero but still yield lines)
   $prev = $ErrorActionPreference
   try { $ErrorActionPreference = "Continue"; $list = & tar -tzf $ArchivePath 2>$null; $code = $LASTEXITCODE }
   finally { $ErrorActionPreference = $prev }
@@ -244,6 +244,7 @@ function Extract-Box([string]$ArchivePath, [string]$TilesDir) {
 
   Ensure-Dir $TilesDir
 
+  # Existing files set "x/y.png"
   $existing = Get-ChildItem -LiteralPath $TilesDir -Recurse -File -Filter *.png -ErrorAction SilentlyContinue |
               ForEach-Object { $_.FullName.Substring($TilesDir.Length).TrimStart('\','/') -replace '\\','/' }
   $existingSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
