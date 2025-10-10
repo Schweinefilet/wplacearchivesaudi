@@ -7,14 +7,9 @@
 <style>
   html,body,#map{height:100%;margin:0}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-
-  /* Put UI layers above everything */
-  #toolbar{position:absolute; left:10px; top:50%; transform:translateY(-50%); z-index:30000;
-           display:flex; flex-direction:column; gap:10px; pointer-events:auto;}
-  #topbar{position:absolute; left:70px; right:10px; top:10px; z-index:30000;
-          display:flex; gap:10px; align-items:center; pointer-events:auto; flex-wrap:wrap}
-
+  #toolbar{position:absolute; left:10px; top:50%; transform:translateY(-50%); z-index:10000; display:flex; flex-direction:column; gap:10px; pointer-events:auto;}
   .sqbtn{min-width:48px; height:48px; border-radius:10px; border:1px solid #0006; background:rgba(20,24,31,.88); color:#e7e7e7; cursor:pointer; display:grid; place-items:center; font-weight:700}
+  #topbar{position:absolute; left:70px; right:10px; top:10px; z-index:10000; display:flex; gap:10px; align-items:center; pointer-events:auto; flex-wrap:wrap}
   #hudwrap{display:flex; gap:10px; align-items:center; background:rgba(20,24,31,.55); padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08); backdrop-filter:blur(6px);}
   #time{ width:280px; height:14px; -webkit-appearance:none; appearance:none; background:transparent; }
   #time::-webkit-slider-runnable-track{ height:3px; background:#cfcfcf; border-radius:2px }
@@ -25,15 +20,15 @@
   .btn4k{ min-width:80px; height:38px; border-radius:9px; border:1px solid #0006; background:rgba(20,24,31,.88); color:#e7e7e7; cursor:pointer; font-weight:700 }
   .btnNav{ min-width:46px; height:38px; border-radius:9px; border:1px solid #0006; background:rgba(20,24,31,.88); color:#e7e7e7; cursor:pointer; font-weight:800 }
   .btnNav:disabled{ opacity:.45; cursor:not-allowed }
-
-  #hudMini{ position:absolute; left:12px; top:12px; z-index:31000; display:none; align-items:center; gap:8px; background:rgba(20,24,31,.80); color:#e7e7e7; padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08); font-weight:700; letter-spacing:.2px; backdrop-filter:blur(6px);}
+  .wplace-single{ pointer-events:none }
+  #hudMini{ position:absolute; left:12px; top:12px; z-index:11000; display:none; align-items:center; gap:8px; background:rgba(20,24,31,.80); color:#e7e7e7; padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08); font-weight:700; letter-spacing:.2px; backdrop-filter:blur(6px);}
   body.minimal #hudMini{ display:flex; } body.minimal #topbar, body.minimal #toolbar, body.minimal .leaflet-control-container{ display:none !important; }
-  #dbgToggle{ position:absolute; left:10px; bottom:10px; z-index:32000; width:42px; height:28px; border-radius:6px; border:1px solid #0006; background:rgba(20,24,31,.88); color:#e7e7e7; cursor:pointer; font-weight:700 }
-  #debugBox{ position:absolute; left:60px; bottom:10px; z-index:32000; display:none; max-width:60ch; background:#0b0b0b; color:#0f0; padding:8px 10px; border-radius:8px; font:12px/1.35 ui-monospace,Consolas,monospace; white-space:pre-wrap; border:1px solid #1f1f1f }
+  #dbgToggle{ position:absolute; left:10px; bottom:10px; z-index:12000; width:42px; height:28px; border-radius:6px; border:1px solid #0006; background:rgba(20,24,31,.88); color:#e7e7e7; cursor:pointer; font-weight:700 }
+  #debugBox{ position:absolute; left:60px; bottom:10px; z-index:12000; display:none; max-width:60ch; background:#0b0b0b; color:#0f0; padding:8px 10px; border-radius:8px; font:12px/1.35 ui-monospace,Consolas,monospace; white-space:pre-wrap; border:1px solid #1f1f1f }
   body.debug #debugBox{ display:block } body.minimal #dbgToggle, body.minimal #debugBox{ display:none !important }
 
-  /* Selection frame (keep below HUD) */
-  #frame{ position:absolute; z-index:29000; border:2px solid #fff; border-radius:10px;
+  /* Selection frame (draggable) */
+  #frame{ position:absolute; z-index:10500; border:2px solid #fff; border-radius:10px;
           box-shadow:0 0 0 9999px rgba(0,0,0,.25) inset, 0 0 0 1px rgba(0,0,0,.35);
           cursor:move; user-select:none; touch-action:none; }
   #frame.hidden{ display:none }
@@ -74,49 +69,155 @@
 <script>
 /* ---------- Debug + helpers ---------- */
 const DBG=(()=>{const box=document.getElementById('debugBox');const log=(m)=>{const t=new Date().toLocaleTimeString();box.textContent=`[${t}] ${m}\n`+box.textContent;};window.addEventListener('error',e=>log('ERR '+(e.message||'')+' @ '+(e.filename||'')+':'+(e.lineno||0)));window.addEventListener('unhandledrejection',e=>log('REJ '+(e.reason?.message||String(e.reason))));return{log};})();
-document.getElementById('dbgToggle').addEventListener('click',()=>{document.body.classList.toggle('debug');DBG.log('debug toggled');});
+document.getElementById('dbgToggle').addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();document.body.classList.toggle('debug');DBG.log('debug toggled');});
 const $=id=>document.getElementById(id);
-
-/* Minimal, safe click binder */
-function bindClick(id, fn){
+function bindClick(id,fn){
   const el=$(id);
-  if(!el){ DBG.log('missing #' + id); return; }
-  el.type='button';
-  el.onclick = fn;
+  if(!el){DBG.log('missing #'+id);return;}
+  el.setAttribute('type','button');
+  el.onclick=null;
+  el.addEventListener('click',(ev)=>{
+    ev.preventDefault(); ev.stopPropagation();
+    try{ fn(ev); DBG.log('click:'+id); }catch(ex){ DBG.log('handler:'+id+' '+ex.message); }
+  }, {passive:false});
 }
 
-/* ---------- Map + layers ---------- */
+/* ---------- Map + overlay ---------- */
 const map=L.map('map',{minZoom:7,maxZoom:14,zoomSnap:0.25,zoomDelta:0.25,scrollWheelZoom:true,zoomControl:true}).setView([23.5,44],7);
-
+L.DomEvent.disableClickPropagation(document.getElementById('toolbar'));
+L.DomEvent.disableClickPropagation(document.getElementById('topbar'));
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 
-const TILE=256;
-const OVERLAY_Z=11;
-const SNAPS=[{label:'2025-08-10',dir:'tiles_2025-08-10'},{label:'2025-08-24',dir:'tiles_2025-08-24'},{label:'2025-08-25',dir:'tiles_2025-08-25'},{label:'2025-08-26',dir:'tiles_2025-08-26'},{label:'2025-08-27',dir:'tiles_2025-08-27'},{label:'2025-08-28',dir:'tiles_2025-08-28'},{label:'2025-08-29',dir:'tiles_2025-08-29'},{label:'2025-08-30',dir:'tiles_2025-08-30'},{label:'2025-08-31',dir:'tiles_2025-08-31'},{label:'2025-09-01',dir:'tiles_2025-09-01'},{label:'2025-09-02',dir:'tiles_2025-09-02'},{label:'2025-09-03',dir:'tiles_2025-09-03'},{label:'2025-09-04',dir:'tiles_2025-09-04'},{label:'2025-09-05',dir:'tiles_2025-09-05'},{label:'2025-09-06',dir:'tiles_2025-09-06'},{label:'2025-09-07',dir:'tiles_2025-09-07'},{label:'2025-09-08',dir:'tiles_2025-09-08'},{label:'2025-09-09',dir:'tiles_2025-09-09'},{label:'2025-09-10',dir:'tiles_2025-09-10'},{label:'2025-09-11',dir:'tiles_2025-09-11'},{label:'2025-09-12',dir:'tiles_2025-09-12'},{label:'2025-09-13',dir:'tiles_2025-09-13'},{label:'2025-09-14',dir:'tiles_2025-09-14'},{label:'2025-09-15',dir:'tiles_2025-09-15'},{label:'2025-09-16',dir:'tiles_2025-09-16'},{label:'2025-09-17',dir:'tiles_2025-09-17'},{label:'2025-09-18',dir:'tiles_2025-09-18'},{label:'2025-09-19',dir:'tiles_2025-09-19'},{label:'2025-09-20',dir:'tiles_2025-09-20'},{label:'2025-09-21',dir:'tiles_2025-09-21'},{label:'2025-09-22',dir:'tiles_2025-09-22'},{label:'2025-09-23',dir:'tiles_2025-09-23'},{label:'2025-09-24',dir:'tiles_2025-09-24'},{label:'2025-09-25',dir:'tiles_2025-09-25'},{label:'2025-09-26',dir:'tiles_2025-09-26'},{label:'2025-09-27',dir:'tiles_2025-09-27'},{label:'2025-09-28',dir:'tiles_2025-09-28'},{label:'2025-09-29',dir:'tiles_2025-09-29'},{label:'2025-09-30',dir:'tiles_2025-09-30'},{label:'2025-10-01',dir:'tiles_2025-10-01'},{label:'2025-10-02',dir:'tiles_2025-10-02'},{label:'2025-10-03',dir:'tiles_2025-10-03'},{label:'2025-10-04',dir:'tiles_2025-10-04'},{label:'2025-10-05',dir:'tiles_2025-10-05'},{label:'2025-10-06',dir:'tiles_2025-10-06'},{label:'2025-10-07',dir:'tiles_2025-10-07'},{label:'2025-10-08',dir:'tiles_2025-10-08'},{label:'2025-10-09',dir:'tiles_2025-10-09'}];
-
-let currentDir=SNAPS[SNAPS.length-1].dir;
-let currentRegion='-';
+const OVERLAY_Z=11, TILE=256;
+let SNAPS = [{label:'loading…',dir:''}];
+let currentDir = '';
+let currentRegion = '—';
 let snapIndex = SNAPS.length-1;
 
-/* Overlay tile layer locked to native zoom 11 */
-let overlay = L.tileLayer(`${currentDir}/{x}/{y}.png`, {
-  tileSize: 256,
-  minZoom: 7,
-  maxZoom: 14,
-  minNativeZoom: OVERLAY_Z,
-  maxNativeZoom: OVERLAY_Z,
-  keepBuffer: 6,
-  updateWhenZooming: true,
-  updateWhenIdle: false,
-  errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
-}).addTo(map);
+/* ---------- Tile loader with hard cancellation ---------- */
+class TileLoader {
+  constructor(concurrency=16){
+    this.concurrency = concurrency;
+    this.abort = null;
+    this.gen = 0;
+  }
+  begin(){
+    if(this.abort) this.abort.abort();
+    this.abort = new AbortController();
+    this.gen++;
+    return {signal:this.abort.signal, gen:this.gen};
+  }
+  async fetchBitmap(url, signal){
+    try{
+      const res = await fetch(url, {signal, cache:'force-cache'});
+      if(!res.ok) return null;
+      const blob = await res.blob();
+      const bmp = await createImageBitmap(blob).catch(()=>null);
+      if(bmp) return bmp;
+      // Fallback to HTMLImage if ImageBitmap unsupported
+      return await new Promise((resolve)=>{
+        const img = new Image();
+        img.onload=()=>resolve(img);
+        img.onerror=()=>resolve(null);
+        img.src = URL.createObjectURL(blob);
+      });
+    }catch(e){ return null; }
+  }
+}
+
+/* single-canvas overlay that aborts stale work */
+class SingleCanvas extends L.Layer{
+  constructor(){
+    super();
+    this._loader = new TileLoader(18);
+  }
+  onAdd(m){
+    this._map=m;
+    this._canvas=L.DomUtil.create('canvas','wplace-single');
+    this._ctx=this._canvas.getContext('2d');
+    m.getPanes().overlayPane.appendChild(this._canvas);
+    m.on('moveend zoomend resize',this._render,this);
+    this._render();
+  }
+  onRemove(m){
+    m.off('moveend zoomend resize',this._render,this);
+    if(this._loader.abort) this._loader.abort.abort();
+    this._canvas.remove();
+  }
+  _size(){
+    const s=this._map.getSize(),dpr=Math.min(2,window.devicePixelRatio||1);
+    this._canvas.width=Math.ceil(s.x*dpr); this._canvas.height=Math.ceil(s.y*dpr);
+    this._canvas.style.width=s.x+'px'; this._canvas.style.height=s.y+'px';
+    const c=this._ctx; c.setTransform(dpr,0,0,dpr,0,0); c.imageSmoothingEnabled=true; c.imageSmoothingQuality='high';
+  }
+  _computeGrid(){
+    const m=this._map, b=m.getBounds();
+    const pNW=m.project(b.getNorthWest(),OVERLAY_Z);
+    const pSE=m.project(b.getSouthEast(),OVERLAY_Z);
+    let xMin=Math.floor(pNW.x/TILE)-1, yMin=Math.floor(pNW.y/TILE)-1;
+    let xMax=Math.ceil(pSE.x/TILE)+1,  yMax=Math.ceil(pSE.y/TILE)+1;
+    const WORLD=(1<<OVERLAY_Z)-1;
+    xMin=Math.max(0,xMin); yMin=Math.max(0,yMin); xMax=Math.min(WORLD,xMax); yMax=Math.min(WORLD,yMax);
+
+    const cols=[],rows=[];
+    for(let xi=xMin;xi<=xMax+1;xi++){
+      const ll=m.unproject([xi*TILE,yMin*TILE],OVERLAY_Z);
+      cols.push(Math.round(m.latLngToLayerPoint(ll).x));
+    }
+    for(let yi=yMin;yi<=yMax+1;yi++){
+      const ll=m.unproject([xMin*TILE,yi*TILE],OVERLAY_Z);
+      rows.push(Math.round(m.latLngToLayerPoint(ll).y));
+    }
+    const jobs=[];
+    for(let x=xMin;x<=xMax;x++){
+      for(let y=yMin;y<=yMax;y++){
+        const i=x-xMin,j=y-yMin;
+        let x1=cols[i],x2=cols[i+1],y1=rows[j],y2=rows[j+1];
+        if(x===xMin)x1--; if(x===xMax)x2++; if(y===yMin)y1--; if(y===yMax)y2++;
+        jobs.push({x,y,dx:x1,dy:y1,dw:(x2-x1),dh:(y2-y1)});
+      }
+    }
+    return jobs;
+  }
+  _render=async ()=>{
+    if(!this._map) return;
+    this._size();
+    const c=this._ctx;
+    c.clearRect(0,0,this._canvas.width,this._canvas.height);
+
+    const {signal, gen} = this._loader.begin(); // abort old, mark new generation
+    const jobs = this._computeGrid();
+    const queue = jobs.slice();
+    const draw = (bmp, j)=>{
+      try{
+        c.drawImage(bmp,0,0,bmp.width||256,bmp.height||256,j.dx,j.dy,j.dw,j.dh);
+        if(bmp.close) bmp.close();
+      }catch(_){}
+    };
+    const worker = async ()=>{
+      while(queue.length && !signal.aborted){
+        const j = queue.pop();
+        const url = `${currentDir}/${j.x}/${j.y}.png`;
+        const bmp = await this._loader.fetchBitmap(url, signal);
+        if(signal.aborted || gen !== this._loader.gen) return;
+        if(bmp) draw(bmp, j);
+      }
+    };
+    const N = this._loader.concurrency;
+    await Promise.all(Array.from({length:N},()=>worker()).map(p=>p.catch(()=>{})));
+  }
+}
+const overlay=new SingleCanvas().addTo(map);
 
 /* ---------- HUD + timeline ---------- */
 const timeEl=$('time'), labelEl=$('label'), zEl=$('z'), hudMini=$('hudMini'), hudMiniText=$('hudMiniText');
 const btnPrev=$('btnPrev'), btnNext=$('btnNext');
 const topbar=$('topbar'), toolbar=$('toolbar'), leafletCtrls=document.querySelector('.leaflet-control-container');
 
-function updateTimelineButtons(){ if(btnPrev) btnPrev.disabled=(snapIndex<=0); if(btnNext) btnNext.disabled=(snapIndex>=SNAPS.length-1); }
+function updateTimelineButtons(){
+  if(btnPrev) btnPrev.disabled = (snapIndex<=0);
+  if(btnNext) btnNext.disabled = (snapIndex>=SNAPS.length-1);
+}
 
 function setSnap(i){
   snapIndex=Math.max(0,Math.min(SNAPS.length-1,i|0));
@@ -124,7 +225,7 @@ function setSnap(i){
   const snap=SNAPS[snapIndex];
   if(labelEl) labelEl.textContent=snap.label;
   currentDir=snap.dir;
-  overlay.setUrl(`${currentDir}/{x}/{y}.png`); // switch tile source for new date
+  overlay._render?.(); // kicks a new generation and aborts the old
   updateHUD();
   updateTimelineButtons();
 }
@@ -134,7 +235,7 @@ function seek(delta){ setSnap(snapIndex+delta); }
 function updateHUD(){
   if(zEl) zEl.textContent='Zoom '+map.getZoom().toFixed(2);
   if(hudMiniText){
-    const dateText=(labelEl?.textContent||'-').trim();
+    const dateText=(labelEl?.textContent||'').trim()||'-';
     hudMiniText.textContent=`${dateText} · ${currentRegion} · Z ${map.getZoom().toFixed(2)}`;
   }
 }
@@ -153,27 +254,44 @@ function applyHUD(){
   }
   updateHUD();
 }
+  
+<script>
+(async ()=>{
+  try {
+    const r = await fetch('snaps.json', { cache:'no-store' });
+    if (r.ok) SNAPS = await r.json();
+  } catch (_) {}
 
-if(timeEl){
-  timeEl.min='0'; timeEl.max=String(SNAPS.length-1); timeEl.step='1'; timeEl.value=String(SNAPS.length-1);
-  let t=null; const sched=v=>{clearTimeout(t); t=setTimeout(()=>setSnap(+v),40);};
-  timeEl.addEventListener('input',e=>sched(e.target.value));
-  timeEl.addEventListener('change',e=>setSnap(+e.target.value));
-}
-bindClick('btnPrev', ()=>seek(-1));
-bindClick('btnNext', ()=>seek(+1));
+  if (!Array.isArray(SNAPS) || SNAPS.length === 0) {
+    SNAPS = [{ label:'none', dir:'' }];
+  }
 
-// keyboard: , (prev) and . (next)
-window.addEventListener('keydown',(e)=>{
-  const k=e.key;
-  if(k===',' ){ e.preventDefault(); seek(-1); }
-  if(k==='.' ){ e.preventDefault(); seek(+1); }
-  const kl=k.toLowerCase();
-  if(kl==='h'){ e.preventDefault(); document.body.classList.toggle('minimal'); applyHUD(); }
-  if(kl==='d'){ e.preventDefault(); document.body.classList.toggle('debug'); DBG.log('debug toggled'); }
-});
+  // wire up the timeline to the loaded SNAPS
+  const timeEl = document.getElementById('time');
+  const labelEl = document.getElementById('label');
 
-setSnap(SNAPS.length-1);
+  function setSnap(i){
+    i = Math.max(0, Math.min(SNAPS.length-1, i|0));
+    if (timeEl) timeEl.value = String(i);
+    const snap = SNAPS[i];
+    if (labelEl) labelEl.textContent = snap.label;
+    currentDir = snap.dir;
+    overlay._render?.();
+    updateHUD();
+  }
+
+  if (timeEl){
+    timeEl.min = '0';
+    timeEl.max = String(SNAPS.length-1);
+    timeEl.step = '1';
+    timeEl.value = String(SNAPS.length-1);
+    timeEl.oninput  = ()=> setSnap(+timeEl.value);
+    timeEl.onchange = ()=> setSnap(+timeEl.value);
+  }
+
+  setSnap(SNAPS.length - 1); // jump to latest
+})();
+
 map.on('zoom zoomend moveend', updateHUD);
 applyHUD();
 
@@ -325,14 +443,13 @@ async function safeDownload(canvas,name,triedOSM){
     return false;
   }
 }
-function labelDate(){ return safeName(labelEl?.textContent); }
 
 /* ---------- Presets + region exports ---------- */
 const meccaCenter = L.latLng(21.422487,39.826206);
 const medinaCenter= L.latLng(24.467240,39.611432);
 
 function makeLabel(region,z){
-  const dateText=(labelEl?.textContent||'-').trim();
+  const dateText=(labelEl?.textContent||'').trim()||'-';
   return `${dateText} · ${region} · Z ${z.toFixed(2)}`;
 }
 
@@ -340,7 +457,14 @@ bindClick('btnMecca', ()=>{ currentRegion='Mecca'; map.fitBounds(L.latLngBounds(
 bindClick('btnMedina',()=>{ currentRegion='Medina';map.fitBounds(L.latLngBounds([24.3497,39.3700],[24.6997,39.9790]),{padding:[40,40]}); updateHUD(); });
 bindClick('btnHUD',   ()=>{ document.body.classList.toggle('minimal'); applyHUD(); DBG.log('HUD toggled'); });
 
-/* export buttons */
+window.addEventListener('keydown',(e)=>{
+  const k=e.key.toLowerCase();
+  if(k==='h'){e.preventDefault();document.body.classList.toggle('minimal');applyHUD();}
+  if(k==='d'){e.preventDefault();document.body.classList.toggle('debug');DBG.log('debug toggled');}
+});
+
+/* ---------- Buttons for exports ---------- */
+function labelDate(){ return safeName(labelEl?.textContent); }
 bindClick('save4kMecca', async ()=>{
   currentRegion='Mecca'; const label=labelDate(); const z=13.5, W=3840, H=2160;
   const b=boundsFromCenterAndPx(meccaCenter,z,W,H);
@@ -359,16 +483,19 @@ bindClick('save4kMedina', async ()=>{
     await safeDownload(canvas, `medina_${label}_4k.png`, false);
   }
 });
+
+/* ---------- Capture from movable frame ---------- */
 bindClick('save4kFrame', async ()=>{
   const rect=getFrameRect();
   const z = map.getZoom();
   const W=3840, H=2160;
-  const b = containerRectToBounds(rect, z);
+  const bounds = containerRectToBounds(rect, z);
   const label = labelDate();
   const region = currentRegion==='-' ? 'Frame' : currentRegion;
-  let canvas=await renderBounds(currentDir, b, W,H,z, true, `${label} · ${region} · Z ${z.toFixed(2)}`);
+  const badge = makeLabel(region, z);
+  let canvas=await renderBounds(currentDir, bounds, W,H,z, true, badge);
   if(!await safeDownload(canvas, `frame_${label}_z${z.toFixed(2)}_4k.png`, true)){
-    canvas=await renderBounds(currentDir, b, W,H,z, false, `${label} · ${region} · Z ${z.toFixed(2)}`);
+    canvas=await renderBounds(currentDir, bounds, W,H,z, false, badge);
     await safeDownload(canvas, `frame_${label}_z${z.toFixed(2)}_4k.png`, false);
   }
 });
@@ -377,3 +504,4 @@ DBG.log('ready');
 </script>
 </body>
 </html>
+
