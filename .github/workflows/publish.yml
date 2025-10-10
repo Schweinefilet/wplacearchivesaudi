@@ -1,0 +1,155 @@
+name: Publish tiles daily
+
+on:
+  schedule:
+    # Runs at 01:10 UTC daily (adjust as you like)
+    - cron: '10 1 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout site repo
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Decide target date
+        id: dates
+        shell: bash
+        run: |
+          if [ -f snaps.json ] && [ -s snaps.json ]; then
+            last=$(jq -r '.[-1].label // empty' snaps.json)
+          else
+            last=""
+          fi
+          if [ -n "$last" ]; then
+            target=$(date -u -d "$last + 1 day" +%F)
+          else
+            target=$(date -u -d "yesterday" +%F)
+          fi
+          echo "last=$last"
+          echo "target=$target"
+          echo "target=$target" >> $GITHUB_OUTPUT
+
+      - name: Find latest asset stem on murolem/wplace-archives for that date
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          target="${{ steps.dates.outputs.target }}"
+          echo "Looking for assets containing $target"
+
+          # list recent releases and flatten to assets (name + url)
+          gh api -H "Accept: application/vnd.github+json" /repos/murolem/wplace-archives/releases?per_page=100 > releases.json
+          jq -r --arg d "$target" '
+            .[] | .assets[] | select(.name | test($d) and test("\\.tar\\.gz"))
+            | {name: .name, url: .browser_download_url}
+          ' releases.json > assets.json
+
+          if [ ! -s assets.json ]; then
+            echo "No matching assets for $target; nothing to do."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # derive a "stem" by stripping .tar.gz and optional split suffix (.aa/.ab/.001/…)
+          jq -r '
+            . as $a | $a.name as $n
+            | ($n | sub("\\.tar\\.gz\\.(?:[a-z]{2}|\\d{3})$";"") | sub("\\.tar\\.gz$";"")) as $stem
+            | {stem:$stem, name:$a.name, url:$a.url}
+          ' assets.json > withstems.json
+
+          # pick the latest by filename sort (times in T… portion sort correctly)
+          stem=$(jq -r 'sort_by(.name) | reverse | .[0].stem' withstems.json)
+          echo "stem=$stem" >> $GITHUB_OUTPUT
+
+          # emit URLs for that stem (one .tar.gz OR multiple split parts)
+          jq -r --arg s "$stem" 'select(.stem==$s) | .url' withstems.json > urls.txt
+          echo "Selected URLs:"; cat urls.txt
+
+      - name: Download assets
+        if: steps.find.outputs.stem != ''
+        shell: bash
+        run: |
+          mkdir -p work
+          cd work
+          while read -r u; do
+            echo "GET $u"
+            curl -sS -L --fail -O "$u"
+          done < ../urls.txt
+          ls -l
+
+      - name: Join (if split) → archive.tar.gz
+        if: steps.find.outputs.stem != ''
+        shell: bash
+        run: |
+          cd work
+          if ls *.tar.gz.* >/dev/null 2>&1; then
+            # concat in lexicographic order: .aa .ab … or .001 .002 …
+            cat $(ls -1 *.tar.gz.* | sort) > archive.tar.gz
+          else
+            mv *.tar.gz archive.tar.gz
+          fi
+          ls -lh archive.tar.gz
+
+      - name: Extract Saudi rectangle (z=11 x=1243..1258, y=875..904)
+        if: steps.find.outputs.stem != ''
+        shell: bash
+        run: |
+          set -e
+          cd work
+          target="${{ steps.dates.outputs.target }}"
+          mkdir -p "../tiles_$target"
+
+          prefix=$(tar -tzf archive.tar.gz | head -1 | sed 's#/.*##')
+          # list wanted files inside the tar
+          tar -tzf archive.tar.gz | awk -v p="$prefix" '
+            match($0, "^" p "/([0-9]+)/([0-9]+)\\.png$", m) {
+              x=m[1]; y=m[2];
+              if (x>=1243 && x<=1258 && y>=875 && y<=904) print $0;
+            }
+          ' > want.txt
+
+          count=$(wc -l < want.txt)
+          if [ "$count" -eq 0 ]; then
+            echo "No tiles matched; exiting."
+            exit 1
+          fi
+
+          tar -xzf archive.tar.gz --strip-components=1 -T want.txt -C "../tiles_$target"
+          echo "Extracted $count files into tiles_$target"
+
+      - name: Update snaps.json
+        if: steps.find.outputs.stem != ''
+        shell: bash
+        run: |
+          target="${{ steps.dates.outputs.target }}"
+          # append only if not already present
+          tmp=snaps.json.new
+          jq --arg d "$target" --arg dir "tiles_$target" '
+            ( . // [] ) as $arr
+            | if ($arr | map(.label) | index($d)) then $arr else ($arr + [{"label":$d,"dir":$dir}]) end
+          ' snaps.json > "$tmp"
+          mv "$tmp" snaps.json
+          jq -r 'length' snaps.json | xargs -I{} echo "snaps.json now has {} entries"
+
+      - name: Commit & push
+        if: steps.find.outputs.stem != ''
+        env:
+          GIT_AUTHOR_NAME: github-actions
+          GIT_AUTHOR_EMAIL: actions@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions
+          GIT_COMMITTER_EMAIL: actions@users.noreply.github.com
+        shell: bash
+        run: |
+          git add snaps.json tiles_*
+          git commit -m "Add tiles for ${{ steps.dates.outputs.target }}" || true
+          git push
