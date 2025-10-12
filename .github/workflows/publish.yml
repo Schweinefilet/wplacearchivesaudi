@@ -2,8 +2,8 @@ name: Publish tiles daily
 
 on:
   schedule:
-    # Runs at 01:10 UTC daily (adjust as you like)
-    - cron: '10 1 * * *'
+    # run later to give upstream time; adjust as needed
+    - cron: '10 3 * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -13,8 +13,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout site repo
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -23,55 +26,45 @@ jobs:
         id: dates
         shell: bash
         run: |
-          if [ -f snaps.json ] && [ -s snaps.json ]; then
-            last=$(jq -r '.[-1].label // empty' snaps.json)
-          else
-            last=""
-          fi
+          set -euo pipefail
+          test -f snaps.json || echo "[]" > snaps.json
+          last=$(jq -r '.[-1].label // empty' snaps.json)
           if [ -n "$last" ]; then
             target=$(date -u -d "$last + 1 day" +%F)
           else
             target=$(date -u -d "yesterday" +%F)
           fi
-          echo "last=$last"
-          echo "target=$target"
-          echo "target=$target" >> $GITHUB_OUTPUT
+          echo "target=$target" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Find latest asset stem on murolem/wplace-archives for that date
+      - name: Find latest asset stem for that date (unauthenticated)
         id: find
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           target="${{ steps.dates.outputs.target }}"
           echo "Looking for assets containing $target"
+          # do NOT pass GITHUB_TOKEN to avoid 404 on other repos
+          curl -sS https://api.github.com/repos/murolem/wplace-archives/releases?per_page=100 > releases.json
 
-          # list recent releases and flatten to assets (name + url)
-          gh api -H "Accept: application/vnd.github+json" /repos/murolem/wplace-archives/releases?per_page=100 > releases.json
           jq -r --arg d "$target" '
             .[] | .assets[] | select(.name | test($d) and test("\\.tar\\.gz"))
             | {name: .name, url: .browser_download_url}
           ' releases.json > assets.json
 
           if [ ! -s assets.json ]; then
-            echo "No matching assets for $target; nothing to do."
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No matching assets for $target"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # derive a "stem" by stripping .tar.gz and optional split suffix (.aa/.ab/.001/…)
           jq -r '
             . as $a | $a.name as $n
             | ($n | sub("\\.tar\\.gz\\.(?:[a-z]{2}|\\d{3})$";"") | sub("\\.tar\\.gz$";"")) as $stem
             | {stem:$stem, name:$a.name, url:$a.url}
           ' assets.json > withstems.json
 
-          # pick the latest by filename sort (times in T… portion sort correctly)
           stem=$(jq -r 'sort_by(.name) | reverse | .[0].stem' withstems.json)
-          echo "stem=$stem" >> $GITHUB_OUTPUT
-
-          # emit URLs for that stem (one .tar.gz OR multiple split parts)
+          echo "stem=$stem" >> "$GITHUB_OUTPUT"
           jq -r --arg s "$stem" 'select(.stem==$s) | .url' withstems.json > urls.txt
           echo "Selected URLs:"; cat urls.txt
 
@@ -79,6 +72,7 @@ jobs:
         if: steps.find.outputs.stem != ''
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p work
           cd work
           while read -r u; do
@@ -91,9 +85,9 @@ jobs:
         if: steps.find.outputs.stem != ''
         shell: bash
         run: |
+          set -euo pipefail
           cd work
           if ls *.tar.gz.* >/dev/null 2>&1; then
-            # concat in lexicographic order: .aa .ab … or .001 .002 …
             cat $(ls -1 *.tar.gz.* | sort) > archive.tar.gz
           else
             mv *.tar.gz archive.tar.gz
@@ -104,35 +98,39 @@ jobs:
         if: steps.find.outputs.stem != ''
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           cd work
           target="${{ steps.dates.outputs.target }}"
-          mkdir -p "../tiles_$target"
+          out="../tiles_$target"
+          mkdir -p "$out"
 
           prefix=$(tar -tzf archive.tar.gz | head -1 | sed 's#/.*##')
-          # list wanted files inside the tar
+
+          # accept either prefix/x/y.png or prefix/11/x/y.png
           tar -tzf archive.tar.gz | awk -v p="$prefix" '
-            match($0, "^" p "/([0-9]+)/([0-9]+)\\.png$", m) {
-              x=m[1]; y=m[2];
+            match($0, "^" p "/(11/)?([0-9]+)/([0-9]+)\\.png$", m) {
+              x=m[2]+0; y=m[3]+0;
               if (x>=1243 && x<=1258 && y>=875 && y<=904) print $0;
             }
           ' > want.txt
 
           count=$(wc -l < want.txt)
           if [ "$count" -eq 0 ]; then
-            echo "No tiles matched; exiting."
+            echo "No tiles matched; sample listing:"
+            tar -tzf archive.tar.gz | head -n 50
             exit 1
           fi
 
-          tar -xzf archive.tar.gz --strip-components=1 -T want.txt -C "../tiles_$target"
+          tar -xzf archive.tar.gz --strip-components=1 -T want.txt -C "$out"
           echo "Extracted $count files into tiles_$target"
 
       - name: Update snaps.json
         if: steps.find.outputs.stem != ''
         shell: bash
         run: |
+          set -euo pipefail
           target="${{ steps.dates.outputs.target }}"
-          # append only if not already present
+          test -f snaps.json || echo "[]" > snaps.json
           tmp=snaps.json.new
           jq --arg d "$target" --arg dir "tiles_$target" '
             ( . // [] ) as $arr
@@ -150,6 +148,7 @@ jobs:
           GIT_COMMITTER_EMAIL: actions@users.noreply.github.com
         shell: bash
         run: |
+          set -euo pipefail
           git add snaps.json tiles_*
-          git commit -m "Add tiles for ${{ steps.dates.outputs.target }}" || true
+          git commit -m "Add tiles for ${{ steps.dates.outputs.target }}" || exit 0
           git push
