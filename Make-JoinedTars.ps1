@@ -1,7 +1,7 @@
 ﻿# Make-JoinedTars.ps1 — JOIN+EXTRACT with FORCE on invalid tars (resume-safe)
 # Window: 2025-08-09 .. 2025-08-20
 # Roots scanned: E:\Downloads E
-# Output: E:\wplace-archive\archive_YYYY-MM-DD.tar.gz and tiles_YYYY-MM-DD\{x}\{y}.png
+# Output: E:\wplace-site\tiles\archive_YYYY-MM-DD.tar.gz and tiles_YYYY-MM-DD\{x}\{y}.png
 
 # ================== CONFIG ==================
 $ROOTS    = @("E:\Downloads E")         # where .tar.gz or split parts live
@@ -21,7 +21,7 @@ $FORCE_EXTRACT_ON_INVALID     = $true
 
 # Date window (inclusive)
 $START_DATE = [datetime]'2025-08-09'
-$END_DATE   = [datetime]'2025-08-20'
+$END_DATE   = [datetime]'2025-10-30'
 # ============================================
 
 $ErrorActionPreference = "Stop"
