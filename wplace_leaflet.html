@@ -114,7 +114,6 @@ class TileLoader {
       const blob = await res.blob();
       const bmp = await createImageBitmap(blob).catch(()=>null);
       if(bmp) return bmp;
-      // Fallback to HTMLImage if ImageBitmap unsupported
       return await new Promise((resolve)=>{
         const img = new Image();
         img.onload=()=>resolve(img);
@@ -181,11 +180,12 @@ class SingleCanvas extends L.Layer{
   }
   _render=async ()=>{
     if(!this._map) return;
+    if(!currentDir) return; // guard: do not fetch before snaps set
     this._size();
     const c=this._ctx;
     c.clearRect(0,0,this._canvas.width,this._canvas.height);
 
-    const {signal, gen} = this._loader.begin(); // abort old, mark new generation
+    const {signal, gen} = this._loader.begin();
     const jobs = this._computeGrid();
     const queue = jobs.slice();
     const draw = (bmp, j)=>{
@@ -197,7 +197,8 @@ class SingleCanvas extends L.Layer{
     const worker = async ()=>{
       while(queue.length && !signal.aborted){
         const j = queue.pop();
-        const url = encodeURI(`${currentDir}/${j.x}/${j.y}.png`);
+        // robust URL resolution for relative dirs and absolute hosts
+        const url = new URL(`${String(currentDir).replace(/\/+$/,'')}/${j.x}/${j.y}.png`, window.location.href).href;
         const bmp = await this._loader.fetchBitmap(url, signal);
         if(signal.aborted || gen !== this._loader.gen) return;
         if(bmp) draw(bmp, j);
@@ -222,10 +223,10 @@ function updateTimelineButtons(){
 function setSnap(i){
   snapIndex=Math.max(0,Math.min(SNAPS.length-1,i|0));
   if(timeEl) timeEl.value=String(snapIndex);
-  const snap=SNAPS[snapIndex];
-  if(labelEl) labelEl.textContent=snap.label;
-  currentDir=snap.dir;
-  overlay._render?.(); // kicks a new generation and aborts the old
+  const snap=SNAPS[snapIndex]||{label:'',dir:''};
+  if(labelEl) labelEl.textContent=snap.label||'';
+  currentDir=snap.dir||'';
+  overlay._render?.();
   updateHUD();
   updateTimelineButtons();
 }
@@ -279,7 +280,7 @@ if (btnNext) bindClick('btnNext', ()=> seek(1));
     timeEl.onchange = ()=> setSnap(+timeEl.value);
   }
 
-  setSnap(SNAPS.length - 1); // jump to latest
+  setSnap(SNAPS.length - 1);
 })();
 
 map.on('zoom zoomend moveend', updateHUD);
@@ -289,8 +290,8 @@ applyHUD();
 const frameEl = $('frame');
 function initFrame(){
   const box = map.getContainer().getBoundingClientRect();
-  const W = Math.min( Math.floor(box.width*0.55), 900 ); // onscreen box size
-  const H = Math.floor(W*9/16);                          // fixed 16:9
+  const W = Math.min( Math.floor(box.width*0.55), 900 );
+  const H = Math.floor(W*9/16);
   const x = Math.round((box.width - W)/2);
   const y = Math.round((box.height- H)/2);
   setFrameRect({x,y,w:W,h:H});
@@ -419,7 +420,10 @@ async function renderBounds(dir, bounds, width, height, captureZoom, includeOSMF
   if(includeOSMFirst){
     await drawTileGridToCanvas(ctx,bounds,width,height,captureZoom,zTile, async (x,y)=> await loadImg(`https://tile.openstreetmap.org/${zTile}/${x}/${y}.png`,true));
   }
-  await drawTileGridToCanvas(ctx,bounds,width,height,captureZoom,OVERLAY_Z, async (x,y)=> await loadImg(`${dir}/${x}/${y}.png`,false));
+  await drawTileGridToCanvas(ctx,bounds,width,height,captureZoom,OVERLAY_Z, async (x,y)=>{
+    const u=new URL(`${String(dir).replace(/\/+$/,'')}/${x}/${y}.png`, window.location.href).href;
+    return await loadImg(u,false);
+  });
   if(labelText){ drawBadge(ctx, labelText, width, height); DBG.log('badge: '+labelText); }
   return c;
 }
