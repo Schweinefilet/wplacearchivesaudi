@@ -91,7 +91,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribu
 const OVERLAY_Z=11, TILE=256;
 let SNAPS = [{label:'loading…',dir:''}];
 let currentDir = '';
-let currentRegion = '—';
+let currentRegion = '-';
 let snapIndex = SNAPS.length-1;
 
 /* ---------- Tile loader with hard cancellation ---------- */
@@ -197,7 +197,7 @@ class SingleCanvas extends L.Layer{
     const worker = async ()=>{
       while(queue.length && !signal.aborted){
         const j = queue.pop();
-        const url = `${currentDir}/${j.x}/${j.y}.png`;
+        const url = encodeURI(`${currentDir}/${j.x}/${j.y}.png`);
         const bmp = await this._loader.fetchBitmap(url, signal);
         if(signal.aborted || gen !== this._loader.gen) return;
         if(bmp) draw(bmp, j);
@@ -254,8 +254,12 @@ function applyHUD(){
   }
   updateHUD();
 }
-  
-<script>
+
+/* prev/next buttons */
+if (btnPrev) bindClick('btnPrev', ()=> seek(-1));
+if (btnNext) bindClick('btnNext', ()=> seek(1));
+
+/* load snaps + wire timeline */
 (async ()=>{
   try {
     const r = await fetch('snaps.json', { cache:'no-store' });
@@ -264,20 +268,6 @@ function applyHUD(){
 
   if (!Array.isArray(SNAPS) || SNAPS.length === 0) {
     SNAPS = [{ label:'none', dir:'' }];
-  }
-
-  // wire up the timeline to the loaded SNAPS
-  const timeEl = document.getElementById('time');
-  const labelEl = document.getElementById('label');
-
-  function setSnap(i){
-    i = Math.max(0, Math.min(SNAPS.length-1, i|0));
-    if (timeEl) timeEl.value = String(i);
-    const snap = SNAPS[i];
-    if (labelEl) labelEl.textContent = snap.label;
-    currentDir = snap.dir;
-    overlay._render?.();
-    updateHUD();
   }
 
   if (timeEl){
@@ -356,6 +346,12 @@ window.addEventListener('keydown', ev=>{
     if(k==='arrowup')    moveFrame(0,-step);
     if(k==='arrowdown')  moveFrame(0,step);
   }
+});
+
+/* comma/period to seek timeline */
+window.addEventListener('keydown', e=>{
+  if(e.key===','){ e.preventDefault(); seek(-1); }
+  if(e.key==='.'){ e.preventDefault(); seek(1); }
 });
 
 initFrame();
@@ -504,4 +500,3 @@ DBG.log('ready');
 </script>
 </body>
 </html>
-
