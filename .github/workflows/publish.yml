@@ -134,8 +134,24 @@ jobs:
             listing="listing.txt"
             (set +o pipefail; tar -tzf archive.tar.gz) > "$listing"
 
+            # Check if archive uses expected z=11 coordinate system (x=1243-1258)
+            expected_coords=$(grep -cE "/(1243|1244|1245|1246|1247|1248|1249|1250|1251|1252|1253|1254|1255|1256|1257|1258)/[0-9]+\.png$" "$listing" || true)
+            if [ "$expected_coords" -eq 0 ]; then
+              echo "WARNING: Archive for $target uses different coordinate system than expected!"
+              echo "Expected z=11 tiles with x=1243-1258, but archive appears to use different coordinates."
+              echo "Sample paths from archive:"
+              head -n 20 "$listing"
+              echo ""
+              echo "This may indicate upstream format change. Skipping $target."
+              echo "Please investigate at: https://github.com/murolem/wplace-archives/releases"
+              rm -f "$listing" want.txt
+              cd ..
+              rm -rf work
+              continue
+            fi
+
             awk -v p="$prefix" '
-              match($0, "^" p "\/(11/)?([0-9]+)\/([0-9]+)\\.png$", m) {
+              match($0, "^" p "/(11/)?([0-9]+)/([0-9]+)\\.png$", m) {
                 x=m[2]+0; y=m[3]+0;
                 if (x>=1243 && x<=1250 && y>=875 && y<=904) print $0;
               }
