@@ -107,7 +107,9 @@ jobs:
             out="../tiles/tiles_$target"
             mkdir -p "$out"
 
-            prefix=$(tar -tzf archive.tar.gz | head -1 | sed 's#/.*##')
+            # get first path inside archive; avoid failing on SIGPIPE from head by
+            # temporarily disabling pipefail so tar | head doesn't abort the script
+            prefix=$((set +o pipefail; tar -tzf archive.tar.gz | head -n 1) | sed 's#/.*##')
 
             # accept either prefix/x/y.png or prefix/11/x/y.png - LEFT HALF ONLY (x=1243-1250)
             tar -tzf archive.tar.gz | awk -v p="$prefix" '
