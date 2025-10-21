@@ -22,7 +22,7 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Decide target date
+      - name: Decide target dates (all missing from latest to yesterday)
         id: dates
         shell: bash
         run: |
@@ -30,117 +30,123 @@ jobs:
           test -f snaps.json || echo "[]" > snaps.json
           last=$(jq -r '.[-1].label // empty' snaps.json)
           if [ -n "$last" ]; then
-            target=$(date -u -d "$last + 1 day" +%F)
+            start=$(date -u -d "$last + 1 day" +%F)
           else
-            target=$(date -u -d "yesterday" +%F)
+            start=$(date -u -d "2025-08-09" +%F)  # fallback to first known date
           fi
-          echo "target=$target" | tee -a "$GITHUB_OUTPUT"
+          end=$(date -u -d "yesterday" +%F)
+          
+          # Generate all dates from start to end
+          current="$start"
+          dates=""
+          while [[ "$current" < "$end" ]] || [[ "$current" == "$end" ]]; do
+            dates="$dates$current "
+            current=$(date -u -d "$current + 1 day" +%F)
+          done
+          
+          echo "dates=$dates" >> "$GITHUB_OUTPUT"
+          echo "Processing dates: $dates"
 
-      - name: Find latest asset stem for that date (unauthenticated)
-        id: find
+      - name: Process each missing date
         shell: bash
         run: |
           set -euo pipefail
-          target="${{ steps.dates.outputs.target }}"
-          echo "Looking for assets containing $target"
-          # do NOT pass GITHUB_TOKEN to avoid 404 on other repos
-          curl -sS https://api.github.com/repos/murolem/wplace-archives/releases?per_page=100 > releases.json
-
-          jq --arg d "$target" '
-            [.[] | .assets[] | select(.name | test($d) and test("\\.tar\\.gz"))
-            | {name: .name, url: .browser_download_url}]
-          ' releases.json > assets.json
-
-          if [ ! -s assets.json ] || [ "$(jq 'length' assets.json)" = "0" ]; then
-            echo "No matching assets for $target"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+          dates="${{ steps.dates.outputs.dates }}"
+          
+          if [ -z "$dates" ]; then
+            echo "No dates to process"
             exit 0
           fi
+          
+          for target in $dates; do
+            echo "==== Processing $target ===="
+            
+            # Find latest asset stem for that date (unauthenticated)
+            echo "Looking for assets containing $target"
+            curl -sS https://api.github.com/repos/murolem/wplace-archives/releases?per_page=100 > releases.json
 
-          jq '[.[] |
-            . as $a | $a.name as $n
-            | ($n | sub("\\.tar\\.gz\\.(?:[a-z]{2}|\\d{3})$";"") | sub("\\.tar\\.gz$";"")) as $stem
-            | {stem:$stem, name:$a.name, url:$a.url}]
-          ' assets.json > withstems.json
+            jq --arg d "$target" '
+              [.[] | .assets[] | select(.name | test($d) and test("\\.tar\\.gz"))
+              | {name: .name, url: .browser_download_url}]
+            ' releases.json > assets.json
 
-          stem=$(jq -r 'sort_by(.name) | reverse | .[0].stem' withstems.json)
-          echo "stem=$stem" >> "$GITHUB_OUTPUT"
-          jq -r --arg s "$stem" '.[] | select(.stem==$s) | .url' withstems.json > urls.txt
-          echo "Selected URLs:"; cat urls.txt
+            if [ ! -s assets.json ] || [ "$(jq 'length' assets.json)" = "0" ]; then
+              echo "No matching assets for $target, skipping"
+              continue
+            fi
 
-      - name: Download assets
-        if: steps.find.outputs.stem != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p work
-          cd work
-          while read -r u; do
-            echo "GET $u"
-            curl -sS -L --fail -O "$u"
-          done < ../urls.txt
-          ls -l
+            jq '[.[] |
+              . as $a | $a.name as $n
+              | ($n | sub("\\.tar\\.gz\\.(?:[a-z]{2}|\\d{3})$";"") | sub("\\.tar\\.gz$";"")) as $stem
+              | {stem:$stem, name:$a.name, url:$a.url}]
+            ' assets.json > withstems.json
 
-      - name: Join (if split) → archive.tar.gz
-        if: steps.find.outputs.stem != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd work
-          if ls *.tar.gz.* >/dev/null 2>&1; then
-            cat $(ls -1 *.tar.gz.* | sort) > archive.tar.gz
-          else
-            mv *.tar.gz archive.tar.gz
-          fi
-          ls -lh archive.tar.gz
+            stem=$(jq -r 'sort_by(.name) | reverse | .[0].stem' withstems.json)
+            echo "Selected stem: $stem"
+            jq -r --arg s "$stem" '.[] | select(.stem==$s) | .url' withstems.json > urls.txt
+            echo "URLs to download:"; cat urls.txt
+            
+            # Download assets
+            mkdir -p work
+            cd work
+            while read -r u; do
+              echo "GET $u"
+              curl -sS -L --fail -O "$u" || { echo "Download failed, skipping $target"; cd ..; rm -rf work; continue 2; }
+            done < ../urls.txt
+            ls -l
+            
+            # Join (if split) → archive.tar.gz
+            if ls *.tar.gz.* >/dev/null 2>&1; then
+              cat $(ls -1 *.tar.gz.* | sort) > archive.tar.gz
+            else
+              mv *.tar.gz archive.tar.gz
+            fi
+            ls -lh archive.tar.gz
+            
+            # Extract left half of Saudi rectangle (z=11 x=1243..1250, y=875..904)
+            out="../tiles/tiles_$target"
+            mkdir -p "$out"
 
-      - name: Extract Saudi rectangle (z=11 x=1243..1258, y=875..904)
-        if: steps.find.outputs.stem != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd work
-          target="${{ steps.dates.outputs.target }}"
-          out="../tiles_$target"
-          mkdir -p "$out"
+            prefix=$(tar -tzf archive.tar.gz | head -1 | sed 's#/.*##')
 
-          prefix=$(tar -tzf archive.tar.gz | head -1 | sed 's#/.*##')
+            # accept either prefix/x/y.png or prefix/11/x/y.png - LEFT HALF ONLY (x=1243-1250)
+            tar -tzf archive.tar.gz | awk -v p="$prefix" '
+              match($0, "^" p "/(11/)?([0-9]+)/([0-9]+)\\.png$", m) {
+                x=m[2]+0; y=m[3]+0;
+                if (x>=1243 && x<=1250 && y>=875 && y<=904) print $0;
+              }
+            ' > want.txt
 
-          # accept either prefix/x/y.png or prefix/11/x/y.png
-          tar -tzf archive.tar.gz | awk -v p="$prefix" '
-            match($0, "^" p "/(11/)?([0-9]+)/([0-9]+)\\.png$", m) {
-              x=m[2]+0; y=m[3]+0;
-              if (x>=1243 && x<=1258 && y>=875 && y<=904) print $0;
-            }
-          ' > want.txt
+            count=$(wc -l < want.txt)
+            if [ "$count" -eq 0 ]; then
+              echo "No tiles matched for $target; sample listing:"
+              tar -tzf archive.tar.gz | head -n 50
+              cd ..
+              rm -rf work
+              continue
+            fi
 
-          count=$(wc -l < want.txt)
-          if [ "$count" -eq 0 ]; then
-            echo "No tiles matched; sample listing:"
-            tar -tzf archive.tar.gz | head -n 50
-            exit 1
-          fi
-
-          tar -xzf archive.tar.gz --strip-components=1 -T want.txt -C "$out"
-          echo "Extracted $count files into tiles_$target"
-
-      - name: Update snaps.json
-        if: steps.find.outputs.stem != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          target="${{ steps.dates.outputs.target }}"
-          test -f snaps.json || echo "[]" > snaps.json
-          tmp=snaps.json.new
-          jq --arg d "$target" --arg dir "tiles_$target" '
-            ( . // [] ) as $arr
-            | if ($arr | map(.label) | index($d)) then $arr else ($arr + [{"label":$d,"dir":$dir}]) end
-          ' snaps.json > "$tmp"
-          mv "$tmp" snaps.json
+            tar -xzf archive.tar.gz --strip-components=1 -T want.txt -C "$out"
+            echo "Extracted $count files into tiles/tiles_$target"
+            
+            # Cleanup work dir for next iteration
+            cd ..
+            rm -rf work
+            
+            # Update snaps.json
+            test -f snaps.json || echo "[]" > snaps.json
+            tmp=snaps.json.new
+            jq --arg d "$target" --arg dir "tiles/tiles_$target" '
+              ( . // [] ) as $arr
+              | if ($arr | map(.label) | index($d)) then $arr else ($arr + [{"label":$d,"dir":$dir}]) end
+            ' snaps.json > "$tmp"
+            mv "$tmp" snaps.json
+            echo "Updated snaps.json with $target"
+          done
+          
           jq -r 'length' snaps.json | xargs -I{} echo "snaps.json now has {} entries"
 
       - name: Commit & push
-        if: steps.find.outputs.stem != ''
         env:
           GIT_AUTHOR_NAME: github-actions
           GIT_AUTHOR_EMAIL: actions@users.noreply.github.com
@@ -149,6 +155,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add snaps.json tiles_*
-          git commit -m "Add tiles for ${{ steps.dates.outputs.target }}" || exit 0
+          if git diff --quiet snaps.json && [ -z "$(git ls-files --others --exclude-standard tiles/)" ]; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add snaps.json tiles/
+          git commit -m "Add tiles for missing dates (left half only)" || exit 0
           git push
