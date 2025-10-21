@@ -95,6 +95,23 @@ jobs:
             done < ../urls.txt
             ls -l
             
+            # Check available disk space before joining
+            parts_size=$(du -sb *.tar.gz* 2>/dev/null | awk '{s+=$1} END {print s}')
+            avail_space=$(df -B1 . | tail -1 | awk '{print $4}')
+            required_space=$((parts_size + parts_size / 10))  # parts + 10% buffer
+            
+            echo "Parts total: $(numfmt --to=iec-i --suffix=B $parts_size)"
+            echo "Available: $(numfmt --to=iec-i --suffix=B $avail_space)"
+            echo "Required (with buffer): $(numfmt --to=iec-i --suffix=B $required_space)"
+            
+            if [ "$avail_space" -lt "$required_space" ]; then
+              echo "ERROR: Insufficient disk space for $target (need $(numfmt --to=iec-i --suffix=B $required_space), have $(numfmt --to=iec-i --suffix=B $avail_space))"
+              echo "Skipping $target due to low disk space"
+              cd ..
+              rm -rf work
+              continue
+            fi
+            
             # Join (if split) → archive.tar.gz
             if ls *.tar.gz.* >/dev/null 2>&1; then
               cat $(ls -1 *.tar.gz.* | sort) > archive.tar.gz
