@@ -46,26 +46,26 @@ jobs:
           # do NOT pass GITHUB_TOKEN to avoid 404 on other repos
           curl -sS https://api.github.com/repos/murolem/wplace-archives/releases?per_page=100 > releases.json
 
-          jq -r --arg d "$target" '
-            .[] | .assets[] | select(.name | test($d) and test("\\.tar\\.gz"))
-            | {name: .name, url: .browser_download_url}
+          jq --arg d "$target" '
+            [.[] | .assets[] | select(.name | test($d) and test("\\.tar\\.gz"))
+            | {name: .name, url: .browser_download_url}]
           ' releases.json > assets.json
 
-          if [ ! -s assets.json ]; then
+          if [ ! -s assets.json ] || [ "$(jq 'length' assets.json)" = "0" ]; then
             echo "No matching assets for $target"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          jq -r '
+          jq '[.[] |
             . as $a | $a.name as $n
             | ($n | sub("\\.tar\\.gz\\.(?:[a-z]{2}|\\d{3})$";"") | sub("\\.tar\\.gz$";"")) as $stem
-            | {stem:$stem, name:$a.name, url:$a.url}
+            | {stem:$stem, name:$a.name, url:$a.url}]
           ' assets.json > withstems.json
 
           stem=$(jq -r 'sort_by(.name) | reverse | .[0].stem' withstems.json)
           echo "stem=$stem" >> "$GITHUB_OUTPUT"
-          jq -r --arg s "$stem" 'select(.stem==$s) | .url' withstems.json > urls.txt
+          jq -r --arg s "$stem" '.[] | select(.stem==$s) | .url' withstems.json > urls.txt
           echo "Selected URLs:"; cat urls.txt
 
       - name: Download assets
