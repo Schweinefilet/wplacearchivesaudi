@@ -124,15 +124,9 @@ jobs:
             out="../tiles/tiles_$target"
             mkdir -p "$out"
 
-            # get first path inside archive; avoid failing on SIGPIPE from head by
-            # temporarily disabling pipefail so tar | head doesn't abort the script
-            prefix=$((set +o pipefail; tar -tzf archive.tar.gz | head -n 1) | sed 's#/.*##')
-
-            # accept either prefix/x/y.png or prefix/11/x/y.png - LEFT HALF ONLY (x=1243-1250)
-            # Create a stable listing file first to avoid SIGPIPE/write errors when
-            # piping tar output directly to other processes in this environment.
+            # Create a stable listing file first to avoid SIGPIPE/write errors
             listing="listing.txt"
-            (set +o pipefail; tar -tzf archive.tar.gz) > "$listing"
+            tar -tzf archive.tar.gz 2>/dev/null > "$listing"
 
             # Check if archive uses expected z=11 coordinate system (x=1243-1258)
             expected_coords=$(grep -cE "/(1243|1244|1245|1246|1247|1248|1249|1250|1251|1252|1253|1254|1255|1256|1257|1258)/[0-9]+\.png$" "$listing" || true)
@@ -150,10 +144,15 @@ jobs:
               continue
             fi
 
-            awk -v p="$prefix" '
-              match($0, "^" p "/(11/)?([0-9]+)/([0-9]+)\\.png$", m) {
-                x=m[2]+0; y=m[3]+0;
-                if (x>=1243 && x<=1250 && y>=875 && y<=904) print $0;
+            # Extract tiles: accept prefix/x/y.png or prefix/11/x/y.png
+            # Use simpler awk filter that doesn't rely on prefix regex matching
+            awk -F'/' '
+              NF >= 3 && $NF ~ /^[0-9]+\.png$/ {
+                # Get x from second-to-last field, y from filename
+                x = $(NF-1) + 0;
+                y = substr($NF, 1, length($NF)-4) + 0;
+                # LEFT HALF ONLY: x=1243-1250, y=875-904
+                if (x >= 1243 && x <= 1250 && y >= 875 && y <= 904) print $0;
               }
             ' "$listing" > want.txt
 
