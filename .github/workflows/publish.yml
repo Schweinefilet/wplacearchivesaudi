@@ -129,17 +129,23 @@ jobs:
             prefix=$((set +o pipefail; tar -tzf archive.tar.gz | head -n 1) | sed 's#/.*##')
 
             # accept either prefix/x/y.png or prefix/11/x/y.png - LEFT HALF ONLY (x=1243-1250)
-            tar -tzf archive.tar.gz | awk -v p="$prefix" '
-              match($0, "^" p "/(11/)?([0-9]+)/([0-9]+)\\.png$", m) {
+            # Create a stable listing file first to avoid SIGPIPE/write errors when
+            # piping tar output directly to other processes in this environment.
+            listing="listing.txt"
+            (set +o pipefail; tar -tzf archive.tar.gz) > "$listing"
+
+            awk -v p="$prefix" '
+              match($0, "^" p "\/(11/)?([0-9]+)\/([0-9]+)\\.png$", m) {
                 x=m[2]+0; y=m[3]+0;
                 if (x>=1243 && x<=1250 && y>=875 && y<=904) print $0;
               }
-            ' > want.txt
+            ' "$listing" > want.txt
 
             count=$(wc -l < want.txt)
             if [ "$count" -eq 0 ]; then
               echo "No tiles matched for $target; sample listing:"
-              tar -tzf archive.tar.gz | head -n 50
+              head -n 50 "$listing"
+              rm -f "$listing" want.txt
               cd ..
               rm -rf work
               continue
@@ -147,6 +153,7 @@ jobs:
 
             tar -xzf archive.tar.gz --strip-components=1 -T want.txt -C "$out"
             echo "Extracted $count files into tiles/tiles_$target"
+            rm -f "$listing" want.txt
             
             # Cleanup work dir for next iteration
             cd ..
