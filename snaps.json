@@ -214,33 +214,5 @@
   {
     "label": "2025-10-14",
     "dir": "tiles/tiles_2025-10-14"
-  },
-  {
-    "label": "2025-10-15",
-    "dir": "tiles/tiles_2025-10-15"
-  },
-  {
-    "label": "2025-10-16",
-    "dir": "tiles/tiles_2025-10-16"
-  },
-  {
-    "label": "2025-10-17",
-    "dir": "tiles/tiles_2025-10-17"
-  },
-  {
-    "label": "2025-10-18",
-    "dir": "tiles/tiles_2025-10-18"
-  },
-  {
-    "label": "2025-10-19",
-    "dir": "tiles/tiles_2025-10-19"
-  },
-  {
-    "label": "2025-10-20",
-    "dir": "tiles/tiles_2025-10-20"
-  },
-  {
-    "label": "2025-10-21",
-    "dir": "tiles/tiles_2025-10-21"
   }
 ]
