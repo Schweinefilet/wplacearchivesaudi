@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set PS1="E:\wplace-archive\Get-LatestWplaceReleases.ps1"
+set PS1="E:\wplace-site\Get-LatestWplaceReleases.ps1"
 echo === wplace releases fetch %date% %time% ===
 REM Optional: set GITHUB_TOKEN here or in System Environment
 REM set GITHUB_TOKEN=ghp_xxx

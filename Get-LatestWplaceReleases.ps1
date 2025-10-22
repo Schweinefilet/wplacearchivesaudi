@@ -1,7 +1,7 @@
 ﻿param(
   [string]$Owner   = "murolem",
   [string]$Repo    = "wplace-archives",
-  [string]$OutDir  = "E:\Downloads",
+  [string]$OutDir  = "E:\Downloads E",
   [string]$HaveDir = "E:\wplace-site\tiles",
   [int]$DaysBack   = 120
 )
@@ -110,7 +110,7 @@ foreach ($kv in $grouped.GetEnumerator() | Sort-Object Name) {
       if ($apiSize) { $have[$name] = $apiSize }
       Log "  [OK  ] $name"
     } catch {
-      Log "  [FAIL] $name: $($_.Exception.Message)"
+      Log "  [FAIL] ${name}: $($_.Exception.Message)"
       if (Test-Path -LiteralPath $dst) { Remove-Item -LiteralPath $dst -Force -ErrorAction SilentlyContinue }
     }
   }
