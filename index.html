@@ -66,7 +66,7 @@ document.getElementById('dbgToggle').addEventListener('click',()=>{document.body
 const $=id=>document.getElementById(id);
 function bindClick(id,fn){const el=$(id);if(!el){DBG.log('missing #'+id);return;}el.type='button';el.onclick=fn;}
 
-const map=L.map('map',{minZoom:7,maxZoom:14,zoomSnap:0.25,zoomDelta:0.25,scrollWheelZoom:true,zoomControl:true}).setView([23.5,44],7);
+const map=L.map('map',{minZoom:7,maxZoom:14,zoomSnap:0.25,zoomDelta:0.25,scrollWheelZoom:true,zoomControl:true}).setView([21.422487,39.826206],11.5);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 
 const TILE=256, OVERLAY_Z=11;

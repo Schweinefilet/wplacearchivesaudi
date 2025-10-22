@@ -1,9 +1,10 @@
 name: Publish tiles daily
 
 on:
-  schedule:
-    # run later to give upstream time; adjust as needed
-    - cron: '10 3 * * *'
+  # Disabled - manual uploads only
+  # schedule:
+  #   # run later to give upstream time; adjust as needed
+  #   - cron: '10 3 * * *'
   workflow_dispatch: {}
 
 permissions:
