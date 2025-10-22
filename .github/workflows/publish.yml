@@ -200,6 +200,6 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git add snaps.json tiles/
+          git add -A snaps.json tiles/
           git commit -m "Add tiles for missing dates (left half only)" || exit 0
           git push
