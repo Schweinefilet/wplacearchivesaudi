@@ -213,10 +213,19 @@ function ProcessDate {
       # Single complete archive
       $asset = $assets[0]
       $outFile = Join-Path $TempDir $asset.name
-      Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
       
-      if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
-        return
+      # Skip download if file already exists and has correct size
+      $needsDownload = $true
+      if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+        Log "  [SKIP] Archive already downloaded: $($asset.name)"
+        $needsDownload = $false
+      }
+      
+      if ($needsDownload) {
+        Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
+          return
+        }
       }
       
       # Extract directly
@@ -239,10 +248,19 @@ function ProcessDate {
       $asset = $assets[0]
       $baseName = $asset.name -replace '\.aa$', ''
       $outFile = Join-Path $TempDir $asset.name
-      Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
       
-      if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
-        return
+      # Skip download if file already exists and has correct size
+      $needsDownload = $true
+      if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+        Log "  [SKIP] Single part already downloaded: $($asset.name)"
+        $needsDownload = $false
+      }
+      
+      if ($needsDownload) {
+        Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
+          return
+        }
       }
       
       # Treat as complete archive (no joining needed)
@@ -268,6 +286,14 @@ function ProcessDate {
       $parts = @()
       foreach ($asset in $assets) {
         $outFile = Join-Path $TempDir $asset.name
+        
+        # Skip download if file already exists and has correct size
+        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+          Log "  [SKIP] Part already downloaded: $($asset.name)"
+          $parts += $outFile
+          continue
+        }
+        
         Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
         
         if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
@@ -323,9 +349,12 @@ function ProcessDate {
     EnsureDir $finalDir
     $moved = 0
     foreach ($x in $MissingX) {
-      $srcXDir = Join-Path $tempExtract $x
+      # Ensure $x is a valid value
+      if ([string]::IsNullOrEmpty($x)) { continue }
+      
+      $srcXDir = Join-Path $tempExtract ([string]$x)
       if (Test-Path $srcXDir) {
-        $dstXDir = Join-Path $finalDir $x
+        $dstXDir = Join-Path $finalDir ([string]$x)
         if (Test-Path $dstXDir) {
           # Merge
           Get-ChildItem -Path $srcXDir -File -Filter "*.png" | ForEach-Object {
@@ -337,7 +366,7 @@ function ProcessDate {
           }
         } else {
           Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force
-          $movedCount = (Get-ChildItem -Path $dstXDir -File -Filter "*.png" -Recurse).Count
+          $movedCount = (Get-ChildItem -Path $dstXDir -File -Filter "*.png" -Recurse -ErrorAction SilentlyContinue).Count
           $moved += $movedCount
         }
       }
@@ -537,9 +566,17 @@ if ($ParallelJobs -gt 1) {
         # Single complete archive
         $asset = $assets[0]
         $outFile = Join-Path $tempDir $asset.name
-        Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
         
-        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+        $needsDownload = $true
+        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+          Log "  [SKIP] Archive already downloaded: $($asset.name)"
+          $needsDownload = $false
+        }
+        
+        if ($needsDownload) {
+          Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+        }
         
         Log "  [EXTRACT] Extracting..."
         if ($use7z) {
@@ -556,9 +593,17 @@ if ($ParallelJobs -gt 1) {
         $asset = $assets[0]
         $baseName = $asset.name -replace '\.aa$', ''
         $outFile = Join-Path $tempDir $asset.name
-        Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
         
-        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+        $needsDownload = $true
+        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+          Log "  [SKIP] Single part already downloaded: $($asset.name)"
+          $needsDownload = $false
+        }
+        
+        if ($needsDownload) {
+          Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+        }
         
         $joinedFile = Join-Path $tempDir $baseName
         Move-Item -LiteralPath $outFile -Destination $joinedFile -Force
@@ -578,6 +623,13 @@ if ($ParallelJobs -gt 1) {
         $parts = @()
         foreach ($asset in $assets) {
           $outFile = Join-Path $tempDir $asset.name
+          
+          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+            Log "  [SKIP] Part already downloaded: $($asset.name)"
+            $parts += $outFile
+            continue
+          }
+          
           Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
           if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
           $parts += $outFile
@@ -614,9 +666,11 @@ if ($ParallelJobs -gt 1) {
       EnsureDir $finalDir
       $moved = 0
       foreach ($x in $missingX) {
-        $srcXDir = Join-Path $tempExtract $x
+        if ([string]::IsNullOrEmpty($x)) { continue }
+        
+        $srcXDir = Join-Path $tempExtract ([string]$x)
         if (Test-Path $srcXDir) {
-          $dstXDir = Join-Path $finalDir $x
+          $dstXDir = Join-Path $finalDir ([string]$x)
           if (Test-Path $dstXDir) {
             Get-ChildItem -Path $srcXDir -File -Filter "*.png" | ForEach-Object {
               $dstFile = Join-Path $dstXDir $_.Name
