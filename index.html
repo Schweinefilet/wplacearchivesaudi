@@ -45,7 +45,7 @@
 <body>
 <div id="map"></div>
 
-<div id="frame"><div class="badge">Drag me · F toggles · ←/→/↑/↓ to nudge</div></div>
+<div id="frame"><div class="badge">Drag me · F toggles · WASD to nudge</div></div>
 
 <div id="toolbar">
   <button id="btnMecca"  class="sqbtn" title="Mecca"  type="button">Mecca</button>
@@ -73,12 +73,12 @@
 <div id="welcomeModal">
   <div id="welcomeBox">
     <h2>Hello</h2>
-    <p>I built this website to view the evolution of western Saudi Arabia over time on wplace.live.</p>
+    <p>I built this website to view the evolution of western Saudi Arabia over time on wplace.live. This is my first time building a website so I apologize for any rough edges</p>
     <p><strong>How to use:</strong></p>
     <ul>
-      <li><strong>Timeline:</strong> Use the slider or arrow buttons to navigate dates. Keyboard: <strong>,</strong> (previous) / <strong>.</strong> (next)</li>
+      <li><strong>Timeline:</strong> Use the slider or arrow buttons to navigate dates. Keyboard: <strong>←/→</strong> or <strong>,</strong> / <strong>.</strong></li>
       <li><strong>Quick jumps:</strong> Click <strong>Mecca</strong> or <strong>Medina</strong> buttons to center the map</li>
-      <li><strong>Frame tool:</strong> Drag the white rectangle to select an area. Press <strong>F</strong> to toggle visibility. Use arrow keys to nudge (hold Shift for bigger steps)</li>
+      <li><strong>Frame tool:</strong> Drag the white rectangle to select an area. Press <strong>F</strong> to toggle visibility. Use <strong>WASD</strong> keys to nudge (hold Shift for bigger steps)</li>
       <li><strong>Export 4K:</strong> Click <strong>4K Mecca</strong>, <strong>4K Medina</strong>, or <strong>4K (Frame)</strong> to download high-resolution images</li>
       <li><strong>HUD toggle:</strong> Press <strong>H</strong> to hide/show controls for a clean view</li>
       <li><strong>Debug mode:</strong> Press <strong>D</strong> or click <strong>DBG</strong> button</li>
@@ -116,7 +116,7 @@ function applyHUD(){const minimal=document.body.classList.contains('minimal');if
 
 if(timeEl){timeEl.min='0';timeEl.step='1';let t=null;const sched=v=>{clearTimeout(t);t=setTimeout(()=>setSnap(+v),40)};timeEl.addEventListener('input',e=>sched(e.target.value));timeEl.addEventListener('change',e=>setSnap(+e.target.value));}
 bindClick('btnPrev',()=>seek(-1));bindClick('btnNext',()=>seek(+1));
-window.addEventListener('keydown',(e)=>{const k=e.key;if(k===','){e.preventDefault();seek(-1);}if(k==='.'){e.preventDefault();seek(+1);}const kl=k.toLowerCase();if(kl==='h'){e.preventDefault();document.body.classList.toggle('minimal');applyHUD();}if(kl==='d'){e.preventDefault();document.body.classList.toggle('debug');DBG.log('debug toggled');}});
+window.addEventListener('keydown',(e)=>{const k=e.key;const kl=k.toLowerCase();if(k===','){e.preventDefault();seek(-1);}if(k==='.'){e.preventDefault();seek(+1);}if(k==='ArrowLeft'){e.preventDefault();seek(-1);}if(k==='ArrowRight'){e.preventDefault();seek(+1);}if(kl==='h'){e.preventDefault();document.body.classList.toggle('minimal');applyHUD();}if(kl==='d'){e.preventDefault();document.body.classList.toggle('debug');DBG.log('debug toggled');}});
 
 const frameEl=$('frame');
 function initFrame(){const box=map.getContainer().getBoundingClientRect();const W=Math.min(Math.floor(box.width*0.55),900);const H=Math.floor(W*9/16);const x=Math.round((box.width-W)/2);const y=Math.round((box.height-H)/2);setFrameRect({x,y,w:W,h:H});}
@@ -127,7 +127,7 @@ let drag=null;frameEl.addEventListener('pointerdown',ev=>{ev.preventDefault();fr
 window.addEventListener('pointermove',ev=>{if(!drag)return;const dx=ev.clientX-drag.startX,dy=ev.clientY-drag.startY;setFrameRect({x:drag.base.x+dx,y:drag.base.y+dy,w:drag.base.w,h:drag.base.h});});
 window.addEventListener('pointerup',()=>{drag=null;});
 window.addEventListener('resize',()=>{initFrame();});
-window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();if(k==='f'){ev.preventDefault();frameEl.classList.toggle('hidden');return;}let step=10;if(ev.altKey)step=1;if(ev.shiftKey)step=50;if(['arrowleft','arrowright','arrowup','arrowdown'].includes(k)){ev.preventDefault();if(k==='arrowleft')moveFrame(-step,0);if(k==='arrowright')moveFrame(step,0);if(k==='arrowup')moveFrame(0,-step);if(k==='arrowdown')moveFrame(0,step);}});
+window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();if(k==='f'){ev.preventDefault();frameEl.classList.toggle('hidden');return;}let step=10;if(ev.altKey)step=1;if(ev.shiftKey)step=50;if(['w','a','s','d'].includes(k)){ev.preventDefault();if(k==='a')moveFrame(-step,0);if(k==='d')moveFrame(step,0);if(k==='w')moveFrame(0,-step);if(k==='s')moveFrame(0,step);}});
 initFrame();
 
 function boundsFromCenterAndPx(centerLL,z,pxW,pxH){const pc=map.project(centerLL,z);const pNW=L.point(pc.x-pxW/2,pc.y-pxH/2);const pSE=L.point(pc.x+pxW/2,pc.y+pxH/2);return L.latLngBounds(map.unproject(pNW,z),map.unproject(pSE,z));}
