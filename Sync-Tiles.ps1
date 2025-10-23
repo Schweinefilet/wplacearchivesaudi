@@ -123,7 +123,7 @@ function GetMissingXFolders {
       $missing += $x
     }
   }
-  return $missing
+  return ,$missing
 }
 
 function DownloadAsset {
@@ -369,13 +369,13 @@ for ($d = $StartDate; $d -le $EndDate; $d = $d.AddDays(1)) {
   
   $missingX = @()
   if (Test-Path $dateDir) {
-    $missingX = GetMissingXFolders -DateDir $dateDir -XMin $XMin -XMax $XMax
+    $missingX = @(GetMissingXFolders -DateDir $dateDir -XMin $XMin -XMax $XMax)
   } else {
     # Entire date missing
-    $missingX = $XMin..$XMax
+    $missingX = @($XMin..$XMax)
   }
   
-  if ($missingX.Count -gt 0) {
+  if (@($missingX).Count -gt 0) {
     $allDates += @{
       Date = $dateStr
       MissingX = $missingX
