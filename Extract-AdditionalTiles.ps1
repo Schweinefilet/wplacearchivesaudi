@@ -14,7 +14,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" }
-function Ensure-Dir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
 
 # Performance boost
 try {
@@ -47,7 +47,7 @@ if ($use7z) {
 }
 
 # Filter function to remove tiles outside Y range
-function Filter-YRange {
+function FilterYRange {
   param([string]$RootPath, [int]$YMin, [int]$YMax)
   
   if (-not (Test-Path $RootPath)) { return }
@@ -78,7 +78,7 @@ function Filter-YRange {
 }
 
 # Flatten nested directory structure (handle prefix/X/Y.png -> X/Y.png)
-function Flatten-ToXY {
+function FlattenToXY {
   param([string]$RootPath, [int]$XMin, [int]$XMax)
   
   if (-not (Test-Path $RootPath)) { return }
@@ -119,7 +119,7 @@ function Flatten-ToXY {
 }
 
 # Extract specific X range from archive
-function Extract-XRange {
+function ExtractXRange {
   param(
     [string]$ArchivePath,
     [string]$OutDir,
@@ -155,12 +155,12 @@ function Extract-XRange {
     return
   }
   
-  Ensure-Dir $finalDir
+  EnsureDir $finalDir
   
   Log "[EXTRACT] $dateStr (X=$XMin-$XMax, Y=$YMin-$YMax)"
   
   $tempDir = Join-Path $env:TEMP "extract_$dateStr"
-  Ensure-Dir $tempDir
+  EnsureDir $tempDir
   
   try {
     if ($Use7z) {
@@ -185,7 +185,7 @@ function Extract-XRange {
     }
     
     # Flatten structure and move relevant X directories
-    Flatten-ToXY -RootPath $tempDir -XMin $XMin -XMax $XMax
+    FlattenToXY -RootPath $tempDir -XMin $XMin -XMax $XMax
     
     # Move extracted X directories to final location
     $moved = 0
@@ -215,7 +215,7 @@ function Extract-XRange {
     }
     
     # Filter Y range
-    Filter-YRange -RootPath $finalDir -YMin $YMin -YMax $YMax
+    FilterYRange -RootPath $finalDir -YMin $YMin -YMax $YMax
     
     # Count final tiles
     $count = 0
@@ -287,14 +287,14 @@ if ($ParallelJobs -gt 1) {
     $use7z = $using:use7z
     
     # Import functions into parallel scope
-    ${function:Log} = $using:function:Log
-    ${function:Ensure-Dir} = $using:function:Ensure-Dir
-    ${function:Filter-YRange} = $using:function:Filter-YRange
-    ${function:Flatten-ToXY} = $using:function:Flatten-ToXY
-    ${function:Extract-XRange} = $using:function:Extract-XRange
+    ${function:Log} = ${using:function:Log}
+    ${function:EnsureDir} = ${using:function:EnsureDir}
+    ${function:FilterYRange} = ${using:function:FilterYRange}
+    ${function:FlattenToXY} = ${using:function:FlattenToXY}
+    ${function:ExtractXRange} = ${using:function:ExtractXRange}
     
-    Extract-XRange -ArchivePath $archive.FullName -OutDir $outDir `
-                   -XMin $xMin -XMax $xMax -YMin $yMin -YMax $yMax -Use7z $use7z
+    ExtractXRange -ArchivePath $archive.FullName -OutDir $outDir `
+                  -XMin $xMin -XMax $xMax -YMin $yMin -YMax $yMax -Use7z $use7z
   } -ThrottleLimit $ParallelJobs
   
   $processed = $archives.Count
@@ -303,8 +303,8 @@ if ($ParallelJobs -gt 1) {
   Log "[START] Processing sequentially..."
   
   foreach ($archive in $archives) {
-    Extract-XRange -ArchivePath $archive.FullName -OutDir $TilesRoot `
-                   -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax -Use7z $use7z
+    ExtractXRange -ArchivePath $archive.FullName -OutDir $TilesRoot `
+                  -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax -Use7z $use7z
     $processed++
   }
 }
