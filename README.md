@@ -1,142 +1,281 @@
-﻿# wplace-archive-tools
+﻿# wplace-archive-saudi# wplace-archive-tools
 
-**Wplace Archive Viewer for Mecca + Medina** — static site + scripts that download, join, and trim daily world dumps to a small z=11 rectangle over western Saudi Arabia, then publish a browsable timeline.
 
-**Live site:** https://schweinefilet.github.io/wplacearchivesaudi/
 
-> Built for **Mecca + Medina** archiving purposes on wplace.live for **islamwp**.  
-> Archives are taken from **https://github.com/murolem/wplace-archives**.
+**Wplace Archive Viewer for Mecca, Medina & Taif** — Interactive timeline viewer for r/place activity in western Saudi Arabia.**Wplace Archive Viewer for Mecca + Medina** — static site + scripts that download, join, and trim daily world dumps to a small z=11 rectangle over western Saudi Arabia, then publish a browsable timeline.
+
+
+
+**Live site:** https://schweinefilet.github.io/wplacearchivesaudi/**Live site:** https://schweinefilet.github.io/wplacearchivesaudi/
+
+
+
+> Built to archive **Mecca, Medina, and Taif** activity on wplace.live for **islamwp**.  > Built for **Mecca + Medina** archiving purposes on wplace.live for **islamwp**.  
+
+> Archives sourced from **https://github.com/murolem/wplace-archives**.> Archives are taken from **https://github.com/murolem/wplace-archives**.
+
+
+
+------
+
+
+
+## What this repo contains## What this repo contains
+
+
+
+- **`index.html`** — Interactive Leaflet viewer with timeline scrubbing, keyboard controls, HUD toggle, and 4K export functionality- **`index.html`** — Leaflet viewer that fetches `snaps.json` and overlays day folders; timeline scrub, HUD, prev/next keys, and quick 4K exports.
+
+- **`snaps.json`** — Timeline metadata:  - **`snaps.json`** — array of objects:  
+
+  ```json  `[{ "label": "YYYY-MM-DD", "dir": "tiles/tiles_YYYY-MM-DD" }, …]`
+
+  [- **`tiles/tiles_YYYY-MM-DD/{x}/{y}.png`** — trimmed z=11 tiles for the Saudi rectangle (x=1243…1258, y=875…904).
+
+    { "label": "2025-08-22", "dir": "tiles/tiles_2025-08-22" },- **Scripts** (Windows-focused):
+
+    ...  - `Get-LatestWplaceReleases.ps1/.bat` — pull the **latest** dump per day (handles split parts).
+
+  ]  - `Make-JoinedTars.ps1` — join parts (resume-safe), verify, **trim** to the rectangle, export `tiles_YYYY-MM-DD`.
+
+  ```  - `Publish-Site.ps1/.bat` — mirror new `tiles_*` into `/tiles/`, rebuild `snaps.json`, commit, push.
+
+- **`tiles/tiles_YYYY-MM-DD/{x}/{y}.png`** — Trimmed z=11 tiles for the Saudi rectangle (X=1243-1253, Y=875-904)- (Optional) **GitHub Actions** workflow to run the whole thing on GitHub daily (no PC needed).
+
+- **`Sync-Tiles.ps1`** — Unified PowerShell script to download and extract tiles, ensuring complete coverage (X=1243-1253)
 
 ---
-
-## What this repo contains
-
-- **`index.html`** — Leaflet viewer that fetches `snaps.json` and overlays day folders; timeline scrub, HUD, prev/next keys, and quick 4K exports.
-- **`snaps.json`** — array of objects:  
-  `[{ "label": "YYYY-MM-DD", "dir": "tiles/tiles_YYYY-MM-DD" }, …]`
-- **`tiles/tiles_YYYY-MM-DD/{x}/{y}.png`** — trimmed z=11 tiles for the Saudi rectangle (x=1243…1258, y=875…904).
-- **Scripts** (Windows-focused):
-  - `Get-LatestWplaceReleases.ps1/.bat` — pull the **latest** dump per day (handles split parts).
-  - `Make-JoinedTars.ps1` — join parts (resume-safe), verify, **trim** to the rectangle, export `tiles_YYYY-MM-DD`.
-  - `Publish-Site.ps1/.bat` — mirror new `tiles_*` into `/tiles/`, rebuild `snaps.json`, commit, push.
-- (Optional) **GitHub Actions** workflow to run the whole thing on GitHub daily (no PC needed).
 
 ---
 
 ## Coordinates & zoom
 
+## Coverage Area
+
 - **Zoom:** 11  
-- **Rectangle:** `x = 1243…1258`, `y = 875…904`  
-Covers Mecca, Medina, Jeddah, Taif at z=11.
 
----
+- **Zoom level:** 11  - **Rectangle:** `x = 1243…1258`, `y = 875…904`  
 
-## Directory layout
+- **X range:** 1243-1253 (Mecca → Taif)Covers Mecca, Medina, Jeddah, Taif at z=11.
 
-<<<<<<< HEAD
+- **Y range:** 875-904  
+
+- **Coordinates:** Covers Mecca (21.42°N, 39.83°E), Medina (24.47°N, 39.61°E), and Taif (21.27°N, 40.42°E)---
+
+
+
+---## Directory layout
+
+
+
+## Quick Start (Windows)<<<<<<< HEAD
+
 ```
 
-=======
->>>>>>> 71a04c6 (publish: sync tiles/* + snaps.json (49 dates))
-/ (repo root)
-├─ index.html
-├─ snaps.json
-├─ tiles/
-<<<<<<< HEAD
-│  ├─ tiles_2025-10-09/
-│  │  └─ 1257/883.png … 1258/904.png
-│  └─ tiles_YYYY-MM-DD/…
-=======
-│ ├─ tiles_2025-10-09/
-│ │ └─ 1257/883.png … 1258/904.png
-│ └─ tiles_YYYY-MM-DD/…
->>>>>>> 71a04c6 (publish: sync tiles/* + snaps.json (49 dates))
-├─ Get-LatestWplaceReleases.ps1
-├─ Make-JoinedTars.ps1
-├─ Publish-Site.ps1
-└─ .github/workflows/ (optional)
+### 1. Set up GitHub token (optional, for higher rate limits)
 
-<<<<<<< HEAD
+```powershell=======
+
+$env:GITHUB_TOKEN = "your_github_token_here">>>>>>> 71a04c6 (publish: sync tiles/* + snaps.json (49 dates))
+
+```/ (repo root)
+
+├─ index.html
+
+### 2. Sync tiles├─ snaps.json
+
+```powershell├─ tiles/
+
+# Download missing dates and X folders<<<<<<< HEAD
+
+.\Sync-Tiles.ps1 -ParallelJobs 16│  ├─ tiles_2025-10-09/
+
+│  │  └─ 1257/883.png … 1258/904.png
+
+# Or with custom paths│  └─ tiles_YYYY-MM-DD/…
+
+.\Sync-Tiles.ps1 -TilesRoot "E:\wplace-site\tiles" -TempDir "E:\wplace-archive"=======
+
+```│ ├─ tiles_2025-10-09/
+
+│ │ └─ 1257/883.png … 1258/904.png
+
+### 3. Update snaps.json│ └─ tiles_YYYY-MM-DD/…
+
+```powershell>>>>>>> 71a04c6 (publish: sync tiles/* + snaps.json (49 dates))
+
+$sn = Get-ChildItem -LiteralPath .\tiles -Directory | Sort-Object Name | ForEach-Object {├─ Get-LatestWplaceReleases.ps1
+
+  $has = Get-ChildItem -LiteralPath $_.FullName -Recurse -Filter *.png -File -ErrorAction SilentlyContinue | Select-Object -First 1├─ Make-JoinedTars.ps1
+
+  if ($has) { [pscustomobject]@{ label = ($_.Name -replace '^tiles_',''); dir = ('tiles/' + $_.Name) } }├─ Publish-Site.ps1
+
+}└─ .github/workflows/ (optional)
+
+$sn | ConvertTo-Json -Depth 2 | Set-Content -LiteralPath .\snaps.json -Encoding UTF8
+
+```<<<<<<< HEAD
+
 ````
-=======
-yaml
-Copy code
->>>>>>> 71a04c6 (publish: sync tiles/* + snaps.json (49 dates))
+
+### 4. View locally=======
+
+```powershellyaml
+
+python -m http.server 8000Copy code
+
+# Open http://localhost:8000/>>>>>>> 71a04c6 (publish: sync tiles/* + snaps.json (49 dates))
+
+```
+
+---
 
 ---
 
 ## Quick start (Windows, local)
-<<<<<<< HEAD
 
-1) **Download latest-per-day assets** into your staging folder:
-```powershell
-# Optional: higher API rate limits
-[Environment]::SetEnvironmentVariable("GITHUB_TOKEN","<your_token>","User")
-$env:GITHUB_TOKEN = "<your_token>"
+## Viewer Controls<<<<<<< HEAD
 
-# Download (adjust inside the script if needed)
-.\Get-LatestWplaceReleases.bat
-````
 
-2. **Join + Extract** (resume-safe; trims to the rectangle; cleans up on full success):
 
-```powershell
+- **Timeline:** Use slider, arrow buttons, or **← / →** keys to navigate dates1) **Download latest-per-day assets** into your staging folder:
+
+- **Quick jumps:** Click **Mecca** or **Medina** buttons```powershell
+
+- **Frame tool:** # Optional: higher API rate limits
+
+  - Drag the white rectangle to select an area[Environment]::SetEnvironmentVariable("GITHUB_TOKEN","<your_token>","User")
+
+  - Press **F** to toggle visibility$env:GITHUB_TOKEN = "<your_token>"
+
+  - Use **WASD** keys to nudge (Alt=1px, Shift=50px steps)
+
+- **4K Export:** Click **4K Mecca**, **4K Medina**, or **4K (Frame)** buttons# Download (adjust inside the script if needed)
+
+- **HUD toggle:** Press **H** to hide/show controls.\Get-LatestWplaceReleases.bat
+
+- **Debug mode:** Press **D** or click **DBG** button````
+
+
+
+---2. **Join + Extract** (resume-safe; trims to the rectangle; cleans up on full success):
+
+
+
+## How Sync-Tiles.ps1 Works```powershell
+
 .\Run-Joiner.bat
-# Resulting tiles end up in: E:\wplace-archive\tiles_YYYY-MM-DD\{x}\{y}.png
+
+The unified script intelligently manages your tile collection:# Resulting tiles end up in: E:\wplace-archive\tiles_YYYY-MM-DD\{x}\{y}.png
+
 ```
 
-3. **Publish the site** (mirrors tiles to `/tiles`, rebuilds `snaps.json`, commits, pushes):
+1. **Scans** your `tiles/` directory to find missing X folders (1243-1253) for each date
 
-```powershell
-.\Publish-Site.bat
-```
+2. **Detects** three archive types:3. **Publish the site** (mirrors tiles to `/tiles`, rebuilds `snaps.json`, commits, pushes):
 
-4. **View locally** (optional):
+   - Single complete `.tar.gz` files
 
-```powershell
+   - Single `.tar.gz.aa` files (treated as complete)```powershell
+
+   - Multi-part archives (`.aa`, `.ab`, `.ac`, etc.).\Publish-Site.bat
+
+3. **Downloads** only what's needed:```
+
+   - Missing dates → Full archive
+
+   - Partial dates → Only missing X folders4. **View locally** (optional):
+
+4. **Extracts** and filters to Y range (875-904)
+
+5. **Cleans up** temporary files```powershell
+
 # from repo root
-python -m http.server 8000
+
+### Parameterspython -m http.server 8000
+
 # then open:
-# http://localhost:8000/
+
+```powershell# http://localhost:8000/
+
+-TilesRoot "E:\wplace-site\tiles"  # Where to store tiles```
+
+-TempDir "E:\wplace-archive"       # Temp extraction directory
+
+-StartDate "2025-08-01"            # Start of date range---
+
+-EndDate "2025-10-23"              # End of date range  
+
+-XMin 1243                         # Western boundary## Auto-updates (choose one)
+
+-XMax 1253                         # Eastern boundary (includes Taif)
+
+-YMin 875                          # Northern boundary### A) Windows Task Scheduler (PC must be on)
+
+-YMax 904                          # Southern boundary
+
+-ParallelJobs 16                   # Number of parallel downloadsSchedule the **publish** step daily:
+
 ```
 
----
-
-## Auto-updates (choose one)
-
-### A) Windows Task Scheduler (PC must be on)
-
-Schedule the **publish** step daily:
-
 ```powershell
-$taskName = 'wplace_publish_site'
+
+---$taskName = 'wplace_publish_site'
+
 $ps1      = 'E:\wplace-site\Publish-Site.ps1'
 
+## Troubleshooting
+
 # Remove existing task (optional)
-if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-  Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-}
+
+**Blank viewer:**if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+
+- Check that `snaps.json` exists and has valid entries  Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+
+- Verify `dir` paths match actual folder names: `"tiles/tiles_YYYY-MM-DD"`}
+
+- Ensure PNG files exist in the date folders
 
 # Run daily at 00:05 under your user (uses your Git creds)
-$action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"`"$ps1`"`""
-$trigger = New-ScheduledTaskTrigger -Daily -At 00:05
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description 'Publish wplace site daily' | Out-Null
+
+**Missing tiles:**$action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"`"$ps1`"`""
+
+- Run `Sync-Tiles.ps1` to detect and fill gaps$trigger = New-ScheduledTaskTrigger -Daily -At 00:05
+
+- Check that X range includes 1243-1253 (not just 1243-1250)Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description 'Publish wplace site daily' | Out-Null
+
 ```
 
-> Make sure the account running the task has working Git credentials (Git Credential Manager).
+**GitHub Pages not updating:**
 
-### B) GitHub Actions (no PC needed)
+- Confirm pushes are landing on `main` branch> Make sure the account running the task has working Git credentials (Git Credential Manager).
 
-Create `.github/workflows/publish.yml` in this repo to auto-fetch the next date’s latest dump from `murolem/wplace-archives`, extract the rectangle into `tiles/tiles_YYYY-MM-DD`, update `snaps.json`, and push. Example workflow:
+- Check repository Settings → Pages is set to "Deploy from branch: main / (root)"
 
-```yaml
-name: Publish tiles daily
+- Wait 2-3 minutes for rebuild### B) GitHub Actions (no PC needed)
+
+
+
+**PowerShell errors:**Create `.github/workflows/publish.yml` in this repo to auto-fetch the next date’s latest dump from `murolem/wplace-archives`, extract the rectangle into `tiles/tiles_YYYY-MM-DD`, update `snaps.json`, and push. Example workflow:
+
+- Ensure you have PowerShell 7+ for parallel processing
+
+- Check that `tar` or `7z` is available in PATH```yaml
+
+- Verify `GITHUB_TOKEN` environment variable if hitting rate limitsname: Publish tiles daily
+
 on:
-  schedule:
+
+---  schedule:
+
     - cron: '10 1 * * *'   # 01:10 UTC daily
-  workflow_dispatch: {}
+
+## License  workflow_dispatch: {}
+
 permissions:
-  contents: write
+
+MIT  contents: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
