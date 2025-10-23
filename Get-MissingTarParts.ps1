@@ -9,12 +9,28 @@ param(
   [int]$XMin = 1243,
   [int]$XMax = 1250,
   [int]$YMin = 875,
-  [int]$YMax = 904
+  [int]$YMax = 904,
+  [int]$ParallelJobs = 3  # Process multiple dates simultaneously (set to 1 to disable)
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+# ===== PERFORMANCE BOOST =====
+try {
+  $process = Get-Process -Id $PID
+  $process.PriorityClass = 'High'  # Boost process priority for faster execution
+  [System.Threading.Thread]::CurrentThread.Priority = 'Highest'
+  Log "[PERF] Running at HIGH priority"
+} catch {
+  Log "[WARN] Could not set high priority: $($_.Exception.Message)"
+}
+
+# Network performance tuning
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::DefaultConnectionLimit = 100  # Allow more parallel connections
+[Net.ServicePointManager]::Expect100Continue = $false    # Skip extra round-trip
+[Net.ServicePointManager]::UseNagleAlgorithm = $false    # Disable packet batching delay
 $ProgressPreference = 'SilentlyContinue'
 
 function Log([string]$m){ Write-Host $m }
@@ -189,14 +205,101 @@ $missingDates = @($grouped.Keys | Where-Object { -not $haveDates.Contains($_) } 
 if ($missingDates.Count -eq 0) { Log "[OK] No missing dates."; exit }
 Log ("[PLAN] Missing dates: {0}" -f ($missingDates -join ", "))
 
-# Local inventory
-Ensure-Dir $OutDir
-$have = @{}
-Get-ChildItem -LiteralPath $OutDir -File -ErrorAction SilentlyContinue | ForEach-Object {
-  if (-not $have.ContainsKey($_.Name) -or $have[$_.Name] -lt $_.Length) { $have[$_.Name] = $_.Length }
+if ($ParallelJobs -gt 1) {
+  Log ("[PERF] Processing with {0} parallel jobs" -f $ParallelJobs)
 }
 
-foreach ($date in $missingDates) {
+# Local inventory (use thread-safe dictionary for parallel processing)
+Ensure-Dir $OutDir
+if ($ParallelJobs -gt 1) {
+  $have = [System.Collections.Concurrent.ConcurrentDictionary[string,int64]]::new()
+  Get-ChildItem -LiteralPath $OutDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+    [void]$have.TryAdd($_.Name, $_.Length)
+  }
+} else {
+  $have = @{}
+  Get-ChildItem -LiteralPath $OutDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+    if (-not $have.ContainsKey($_.Name) -or $have[$_.Name] -lt $_.Length) { $have[$_.Name] = $_.Length }
+  }
+}
+
+# Process dates (parallel or sequential based on ParallelJobs parameter)
+if ($ParallelJobs -gt 1) {
+  # ===== PARALLEL PROCESSING =====
+  $missingDates | ForEach-Object -ThrottleLimit $ParallelJobs -Parallel {
+    $date = $_
+    $Owner = $using:Owner; $Repo = $using:Repo; $TilesRoot = $using:TilesRoot; $OutDir = $using:OutDir
+    $XMin = $using:XMin; $XMax = $using:XMax; $YMin = $using:YMin; $YMax = $using:YMax
+    $grouped = $using:grouped; $have = $using:have
+    
+    function Log([string]$m){ Write-Host "[$date] $m" }
+    function Ensure-Dir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+    ${function:Remove-EmptyPngs} = $using:function:Remove-EmptyPngs
+    ${function:Filter-YRange} = $using:function:Filter-YRange
+    ${function:Flatten-Numeric} = $using:function:Flatten-Numeric
+    ${function:Get-StripComponents} = $using:function:Get-StripComponents
+    ${function:Extract-OnlyRange} = $using:function:Extract-OnlyRange
+    
+    try {
+      $rel = $grouped[$date].Release
+      Log ("Processing tag={0}" -f $rel.tag_name)
+      
+      # Parts
+      $assets = @($rel.assets | Where-Object { $_.name -match '\.tar\.gz\.((aa|ab|ac|ad|ae)|\d{3})$' })
+      if (-not $assets -or $assets.Count -eq 0) { Log "WARN: no split parts found"; return }
+      
+      foreach ($a in ($assets | Sort-Object name)) {
+        $name = $a.name; $dst = Join-Path $OutDir $name; $apiSize = if ($a.size) { [int64]$a.size } else { $null }
+        $need = $true
+        if ($apiSize) {
+          [int64]$existing = 0
+          if ($have.TryGetValue($name, [ref]$existing) -and $existing -eq $apiSize) { 
+            $need = $false 
+          }
+          elseif ((Test-Path -LiteralPath $dst)) {
+            try { if ((Get-Item -LiteralPath $dst).Length -eq $apiSize) { $need = $false } } catch {}
+          }
+        }
+        if ($need) {
+          Log "GET $name"
+          Invoke-WebRequest -Uri $a.browser_download_url -OutFile $dst -UseBasicParsing -ErrorAction Stop
+          if ($apiSize) { [void]$have.TryAdd($name, $apiSize) }
+        }
+      }
+      
+      # Join parts
+      $parts = @($assets | Sort-Object name | ForEach-Object { $p = Join-Path $OutDir $_.name; if (Test-Path -LiteralPath $p) { Get-Item -LiteralPath $p } })
+      if (@($parts).Count -lt 2) { Log "WARN: not enough parts"; return }
+      
+      $joinedName = "archive_$date.tar.gz"; $joinedTemp = Join-Path $OutDir $joinedName
+      Log ("JOIN {0} parts" -f @($parts).Count)
+      $fsOut = [System.IO.File]::Open($joinedTemp, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+      try { 
+        foreach ($pi in $parts) { 
+          $fsIn = [System.IO.File]::OpenRead($pi.FullName)
+          try { $fsIn.CopyTo($fsOut) } 
+          finally { $fsIn.Dispose() } 
+        } 
+      } 
+      finally { $fsOut.Dispose() }
+      
+      # Extract filtered tiles
+      $dateDir = Join-Path $TilesRoot ("tiles_{0}" -f $date)
+      Ensure-Dir $dateDir
+      Extract-OnlyRange -ArchivePath $joinedTemp -DestDir $dateDir -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax
+      
+      # Cleanup
+      try { Remove-Item -LiteralPath $joinedTemp -Force } catch {}
+      foreach ($pi in $parts) { try { Remove-Item -LiteralPath $pi.FullName -Force } catch {} }
+      
+      Log "DONE"
+    } catch {
+      Log ("ERROR: {0}" -f $_.Exception.Message)
+    }
+  }
+} else {
+  # ===== SEQUENTIAL PROCESSING =====
+  foreach ($date in $missingDates) {
   try {
     $rel = $grouped[$date].Release
     Log ("[DATE] {0}  tag={1}  published={2}" -f $date, $rel.tag_name, [datetime]$rel.published_at)
@@ -242,6 +345,7 @@ foreach ($date in $missingDates) {
   } catch {
     Log ("  [ERR] date {0}: {1}" -f $date, $_.Exception.Message)
     continue
+  }
   }
 }
 
