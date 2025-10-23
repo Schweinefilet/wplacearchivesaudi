@@ -206,6 +206,14 @@ $missingDates = @($grouped.Keys | Where-Object { -not $haveDates.Contains($_) } 
 if ($missingDates.Count -eq 0) { Log "[OK] No missing dates."; exit }
 Log ("[PLAN] Missing dates: {0}" -f ($missingDates -join ", "))
 
+# Check PowerShell version for parallel support
+$psVersion = $PSVersionTable.PSVersion.Major
+if ($ParallelJobs -gt 1 -and $psVersion -lt 7) {
+  Log "[WARN] Parallel processing requires PowerShell 7+. You have version $psVersion. Falling back to sequential processing."
+  Log "[INFO] To use parallel processing, install PowerShell 7: https://aka.ms/powershell"
+  $ParallelJobs = 1
+}
+
 if ($ParallelJobs -gt 1) {
   Log ("[PERF] Processing with {0} parallel jobs" -f $ParallelJobs)
 }
