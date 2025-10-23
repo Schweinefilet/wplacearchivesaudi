@@ -16,6 +16,10 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# Define logging function first
+function Log([string]$m){ Write-Host $m }
+function Ensure-Dir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+
 # ===== PERFORMANCE BOOST =====
 try {
   $process = Get-Process -Id $PID
@@ -32,9 +36,6 @@ try {
 [Net.ServicePointManager]::Expect100Continue = $false    # Skip extra round-trip
 [Net.ServicePointManager]::UseNagleAlgorithm = $false    # Disable packet batching delay
 $ProgressPreference = 'SilentlyContinue'
-
-function Log([string]$m){ Write-Host $m }
-function Ensure-Dir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
 
 function Get-ExistingDates([string]$root){
   $set = [System.Collections.Generic.HashSet[string]]::new()
