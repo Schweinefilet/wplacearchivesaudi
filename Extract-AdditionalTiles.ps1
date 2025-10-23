@@ -31,42 +31,90 @@ try {
 [System.Net.ServicePointManager]::Expect100Continue = $false
 [System.Net.ServicePointManager]::UseNagleAlgorithm = $false
 
-# Check for 7z (preferred) or tar
+# Check for tools
 $use7z = (Get-Command "7z" -ErrorAction SilentlyContinue) -ne $null
+$hasTar = (Get-Command "tar" -ErrorAction SilentlyContinue) -ne $null
+
+if (-not $use7z -and -not $hasTar) {
+  Log "[ERROR] Neither 7z nor tar found. Please install tar or 7zip."
+  exit 1
+}
+
 if ($use7z) {
-  Log "[INFO] Using 7z for extraction (faster)"
+  Log "[INFO] Using 7z for extraction"
 } else {
-  if (-not (Get-Command "tar" -ErrorAction SilentlyContinue)) {
-    Log "[ERROR] Neither 7z nor tar found. Install one of them."
-    exit 1
-  }
   Log "[INFO] Using tar for extraction"
 }
 
-# Filter function to keep only Y range
+# Filter function to remove tiles outside Y range
 function Filter-YRange {
-  param([string]$Path, [int]$YMin, [int]$YMax)
+  param([string]$RootPath, [int]$YMin, [int]$YMax)
   
-  if (-not (Test-Path $Path)) { return }
+  if (-not (Test-Path $RootPath)) { return }
   
   $removed = 0
-  Get-ChildItem -Path $Path -Directory | ForEach-Object {
+  Get-ChildItem -Path $RootPath -Directory -ErrorAction SilentlyContinue | ForEach-Object {
     $xDir = $_
-    Get-ChildItem -Path $xDir.FullName -File -Filter "*.png" | ForEach-Object {
-      $yVal = [int]($_.BaseName)
-      if ($yVal -lt $YMin -or $yVal -gt $YMax) {
-        Remove-Item -LiteralPath $_.FullName -Force
-        $removed++
+    if ($xDir.Name -match '^\d+$') {
+      Get-ChildItem -Path $xDir.FullName -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.BaseName -match '^\d+$') {
+          $yVal = [int]($_.BaseName)
+          if ($yVal -lt $YMin -or $yVal -gt $YMax) {
+            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+            $removed++
+          }
+        }
       }
-    }
-    # Remove empty X directories
-    if (-not (Get-ChildItem -Path $xDir.FullName -File)) {
-      Remove-Item -LiteralPath $xDir.FullName -Force -Recurse
+      # Remove empty X directories
+      if (-not (Get-ChildItem -Path $xDir.FullName -File -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $xDir.FullName -Force -Recurse -ErrorAction SilentlyContinue
+      }
     }
   }
   
   if ($removed -gt 0) {
-    Log "[FILTER] Removed $removed tiles outside Y range ($YMin-$YMax)"
+    Log "  [FILTER] Removed $removed tiles outside Y=$YMin-$YMax"
+  }
+}
+
+# Flatten nested directory structure (handle prefix/X/Y.png -> X/Y.png)
+function Flatten-ToXY {
+  param([string]$RootPath, [int]$XMin, [int]$XMax)
+  
+  if (-not (Test-Path $RootPath)) { return }
+  
+  # Find any non-numeric top-level directories (date prefixes)
+  Get-ChildItem -Path $RootPath -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.Name -notmatch '^\d+$') {
+      $prefixDir = $_
+      # Look for numeric X directories inside
+      Get-ChildItem -Path $prefixDir.FullName -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.Name -match '^\d+$') {
+          $xVal = [int]($_.Name)
+          if ($xVal -ge $XMin -and $xVal -le $XMax) {
+            $srcXDir = $_.FullName
+            $dstXDir = Join-Path $RootPath $_.Name
+            
+            if (Test-Path $dstXDir) {
+              # Merge into existing X directory
+              Get-ChildItem -Path $srcXDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
+                $dstFile = Join-Path $dstXDir $_.Name
+                if (-not (Test-Path $dstFile)) {
+                  Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force -ErrorAction SilentlyContinue
+                }
+              }
+            } else {
+              # Move entire X directory
+              Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force -ErrorAction SilentlyContinue
+            }
+          }
+        }
+      }
+      # Remove prefix directory if empty
+      if (-not (Get-ChildItem -Path $prefixDir.FullName -Recurse -File -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $prefixDir.FullName -Force -Recurse -ErrorAction SilentlyContinue
+      }
+    }
   }
 }
 
@@ -82,89 +130,143 @@ function Extract-XRange {
     [bool]$Use7z
   )
   
+  # Extract date from filename
   $dateMatch = [regex]::Match([System.IO.Path]::GetFileName($ArchivePath), '(\d{4}-\d{2}-\d{2})')
   if (-not $dateMatch.Success) {
-    Log "[WARN] Could not extract date from $ArchivePath"
+    Log "[WARN] Could not extract date from: $(Split-Path -Leaf $ArchivePath)"
     return
   }
   
   $dateStr = $dateMatch.Groups[1].Value
   $finalDir = Join-Path $OutDir "tiles_$dateStr"
   
-  Ensure-Dir $finalDir
-  
-  Log "[EXTRACT] $dateStr from $(Split-Path -Leaf $ArchivePath)"
-  
-  if ($Use7z) {
-    # Extract only the X range we need
-    for ($x = $XMin; $x -le $XMax; $x++) {
-      $pattern = "$x/*"
-      try {
-        & 7z x "$ArchivePath" -o"$finalDir" "$pattern" -y -bb0 -bd | Out-Null
-      } catch {
-        # Ignore if X coordinate doesn't exist in archive
-      }
-    }
-  } else {
-    # tar extraction
-    $tempList = Join-Path $env:TEMP "tarlist_$dateStr.txt"
-    try {
-      tar -tzf "$ArchivePath" > "$tempList" 2>$null
-      
-      # Filter for X range
-      $filtered = Get-Content $tempList | Where-Object {
-        if ($_ -match '(\d{4})/') {
-          $xVal = [int]$matches[1]
-          return ($xVal -ge $XMin -and $xVal -le $XMax)
-        }
-        return $false
-      }
-      
-      if ($filtered) {
-        $filtered | tar -xzf "$ArchivePath" -C "$finalDir" --files-from - 2>$null
-      }
-    } finally {
-      if (Test-Path $tempList) { Remove-Item $tempList -Force }
+  # Check if this date already has tiles in the target X range
+  $needsExtraction = $false
+  for ($x = $XMin; $x -le $XMax; $x++) {
+    $xDir = Join-Path $finalDir $x
+    if (-not (Test-Path $xDir)) {
+      $needsExtraction = $true
+      break
     }
   }
   
-  # Filter Y range
-  Filter-YRange -Path $finalDir -YMin $YMin -YMax $YMax
+  if (-not $needsExtraction) {
+    Log "[SKIP] $dateStr - Already has tiles in X=$XMin-$XMax range"
+    return
+  }
   
-  # Count extracted tiles
-  $count = (Get-ChildItem -Path $finalDir -Recurse -File -Filter "*.png" -ErrorAction SilentlyContinue | Measure-Object).Count
-  if ($count -gt 0) {
-    Log "[DONE] $dateStr - $count tiles extracted"
-  } else {
-    Log "[SKIP] $dateStr - No tiles in X range $XMin-$XMax"
-    if (Test-Path $finalDir) { Remove-Item $finalDir -Recurse -Force }
+  Ensure-Dir $finalDir
+  
+  Log "[EXTRACT] $dateStr (X=$XMin-$XMax, Y=$YMin-$YMax)"
+  
+  $tempDir = Join-Path $env:TEMP "extract_$dateStr"
+  Ensure-Dir $tempDir
+  
+  try {
+    if ($Use7z) {
+      # Extract with 7z - extract full archive first, then filter
+      & 7z x "$ArchivePath" -o"$tempDir" -y -bb0 -bd | Out-Null
+      if ($LASTEXITCODE -ne 0) {
+        Log "[ERROR] 7z extraction failed for $dateStr"
+        return
+      }
+    } else {
+      # Extract with tar
+      Push-Location $tempDir
+      try {
+        tar -xzf "$ArchivePath" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+          Log "[ERROR] tar extraction failed for $dateStr"
+          return
+        }
+      } finally {
+        Pop-Location
+      }
+    }
+    
+    # Flatten structure and move relevant X directories
+    Flatten-ToXY -RootPath $tempDir -XMin $XMin -XMax $XMax
+    
+    # Move extracted X directories to final location
+    $moved = 0
+    for ($x = $XMin; $x -le $XMax; $x++) {
+      $srcXDir = Join-Path $tempDir $x
+      if (Test-Path $srcXDir) {
+        $dstXDir = Join-Path $finalDir $x
+        if (Test-Path $dstXDir) {
+          # Merge PNG files
+          Get-ChildItem -Path $srcXDir -File -Filter "*.png" | ForEach-Object {
+            $dstFile = Join-Path $dstXDir $_.Name
+            if (-not (Test-Path $dstFile)) {
+              Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force
+              $moved++
+            }
+          }
+        } else {
+          Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force
+          $moved += (Get-ChildItem -Path $dstXDir -File -Filter "*.png" -Recurse | Measure-Object).Count
+        }
+      }
+    }
+    
+    if ($moved -eq 0) {
+      Log "[SKIP] $dateStr - No tiles found in X=$XMin-$XMax range"
+      return
+    }
+    
+    # Filter Y range
+    Filter-YRange -RootPath $finalDir -YMin $YMin -YMax $YMax
+    
+    # Count final tiles
+    $count = 0
+    for ($x = $XMin; $x -le $XMax; $x++) {
+      $xDir = Join-Path $finalDir $x
+      if (Test-Path $xDir) {
+        $count += (Get-ChildItem -Path $xDir -File -Filter "*.png" | Measure-Object).Count
+      }
+    }
+    
+    Log "[DONE] $dateStr - $count new tiles extracted (X=$XMin-$XMax)"
+    
+  } finally {
+    # Cleanup temp directory
+    if (Test-Path $tempDir) {
+      Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
   }
 }
 
 # Main execution
 Log "========================================="
-Log "Extract Additional Tiles for Taif"
+Log "Extract Additional Tiles (Taif Region)"
 Log "========================================="
 Log "[CONFIG] Source: $TarGzDir"
 Log "[CONFIG] Output: $TilesRoot"
-Log "[CONFIG] X Range: $XMin-$XMax (Taif region)"
+Log "[CONFIG] X Range: $XMin-$XMax"
 Log "[CONFIG] Y Range: $YMin-$YMax"
 Log "[CONFIG] Parallel Jobs: $ParallelJobs"
 
-# Find all tar.gz files
-$archives = Get-ChildItem -Path $TarGzDir -Filter "*.tar.gz" | Sort-Object Name
-
-if (-not $archives) {
-  Log "[ERROR] No .tar.gz files found in $TarGzDir"
+# Verify source directory exists
+if (-not (Test-Path $TarGzDir)) {
+  Log "[ERROR] Source directory not found: $TarGzDir"
   exit 1
 }
 
-Log "[FOUND] $($archives.Count) .tar.gz files"
+# Find all tar.gz files
+$archives = Get-ChildItem -Path $TarGzDir -Filter "*.tar.gz" -File -ErrorAction SilentlyContinue | Sort-Object Name
+
+if (-not $archives -or $archives.Count -eq 0) {
+  Log "[ERROR] No .tar.gz files found in $TarGzDir"
+  Log "[HINT] Looking for files like: 2025-10-22.tar.gz or archive_2025-10-22.tar.gz"
+  exit 1
+}
+
+Log "[FOUND] $($archives.Count) archive(s)"
 
 # Check PowerShell version for parallel support
 $psVersion = $PSVersionTable.PSVersion.Major
 if ($psVersion -lt 7) {
-  Log "[WARN] PowerShell $psVersion detected. Parallel processing requires PS7+, using sequential mode."
+  Log "[WARN] PowerShell $psVersion detected. Parallel requires PS7+. Using sequential mode."
   $ParallelJobs = 1
 }
 
@@ -184,81 +286,12 @@ if ($ParallelJobs -gt 1) {
     $yMax = $using:YMax
     $use7z = $using:use7z
     
-    # Re-define functions in parallel scope
-    function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" }
-    function Ensure-Dir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
-    
-    function Filter-YRange {
-      param([string]$Path, [int]$YMin, [int]$YMax)
-      if (-not (Test-Path $Path)) { return }
-      $removed = 0
-      Get-ChildItem -Path $Path -Directory | ForEach-Object {
-        $xDir = $_
-        Get-ChildItem -Path $xDir.FullName -File -Filter "*.png" | ForEach-Object {
-          $yVal = [int]($_.BaseName)
-          if ($yVal -lt $YMin -or $yVal -gt $YMax) {
-            Remove-Item -LiteralPath $_.FullName -Force
-            $removed++
-          }
-        }
-        if (-not (Get-ChildItem -Path $xDir.FullName -File)) {
-          Remove-Item -LiteralPath $xDir.FullName -Force -Recurse
-        }
-      }
-      if ($removed -gt 0) {
-        Log "[FILTER] Removed $removed tiles outside Y range ($YMin-$YMax)"
-      }
-    }
-    
-    function Extract-XRange {
-      param(
-        [string]$ArchivePath, [string]$OutDir, [int]$XMin, [int]$XMax,
-        [int]$YMin, [int]$YMax, [bool]$Use7z
-      )
-      
-      $dateMatch = [regex]::Match([System.IO.Path]::GetFileName($ArchivePath), '(\d{4}-\d{2}-\d{2})')
-      if (-not $dateMatch.Success) { return }
-      
-      $dateStr = $dateMatch.Groups[1].Value
-      $finalDir = Join-Path $OutDir "tiles_$dateStr"
-      
-      Ensure-Dir $finalDir
-      Log "[EXTRACT] $dateStr from $(Split-Path -Leaf $ArchivePath)"
-      
-      if ($Use7z) {
-        for ($x = $XMin; $x -le $XMax; $x++) {
-          try {
-            & 7z x "$ArchivePath" -o"$finalDir" "$x/*" -y -bb0 -bd | Out-Null
-          } catch {}
-        }
-      } else {
-        $tempList = Join-Path $env:TEMP "tarlist_$dateStr.txt"
-        try {
-          tar -tzf "$ArchivePath" > "$tempList" 2>$null
-          $filtered = Get-Content $tempList | Where-Object {
-            if ($_ -match '(\d{4})/') {
-              $xVal = [int]$matches[1]
-              return ($xVal -ge $XMin -and $xVal -le $XMax)
-            }
-            return $false
-          }
-          if ($filtered) {
-            $filtered | tar -xzf "$ArchivePath" -C "$finalDir" --files-from - 2>$null
-          }
-        } finally {
-          if (Test-Path $tempList) { Remove-Item $tempList -Force }
-        }
-      }
-      
-      Filter-YRange -Path $finalDir -YMin $YMin -YMax $YMax
-      
-      $count = (Get-ChildItem -Path $finalDir -Recurse -File -Filter "*.png" -ErrorAction SilentlyContinue | Measure-Object).Count
-      if ($count -gt 0) {
-        Log "[DONE] $dateStr - $count tiles extracted"
-      } else {
-        if (Test-Path $finalDir) { Remove-Item $finalDir -Recurse -Force }
-      }
-    }
+    # Import functions into parallel scope
+    ${function:Log} = $using:function:Log
+    ${function:Ensure-Dir} = $using:function:Ensure-Dir
+    ${function:Filter-YRange} = $using:function:Filter-YRange
+    ${function:Flatten-ToXY} = $using:function:Flatten-ToXY
+    ${function:Extract-XRange} = $using:function:Extract-XRange
     
     Extract-XRange -ArchivePath $archive.FullName -OutDir $outDir `
                    -XMin $xMin -XMax $xMax -YMin $yMin -YMax $yMax -Use7z $use7z
@@ -278,5 +311,5 @@ if ($ParallelJobs -gt 1) {
 
 $elapsed = (Get-Date) - $startTime
 Log "========================================="
-Log "[COMPLETE] Processed $processed archives in $($elapsed.TotalMinutes.ToString('F1')) minutes"
+Log "[COMPLETE] Processed $processed archive(s) in $($elapsed.TotalMinutes.ToString('F1')) minutes"
 Log "========================================="
