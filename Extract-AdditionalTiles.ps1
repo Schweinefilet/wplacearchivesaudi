@@ -3,6 +3,7 @@
 param(
   [string]$TarGzDir    = "E:\Downloads E",
   [string]$TilesRoot   = "E:\wplace-site\tiles",
+  [string]$TempDir     = "E:\wplace-archive",
   [int]$XMin = 1251,
   [int]$XMax = 1253,
   [int]$YMin = 875,
@@ -127,7 +128,8 @@ function ExtractXRange {
     [int]$XMax,
     [int]$YMin,
     [int]$YMax,
-    [bool]$Use7z
+    [bool]$Use7z,
+    [string]$TempRoot
   )
   
   # Extract date from filename
@@ -159,7 +161,7 @@ function ExtractXRange {
   
   Log "[EXTRACT] $dateStr (X=$XMin-$XMax, Y=$YMin-$YMax)"
   
-  $tempDir = Join-Path $env:TEMP "extract_$dateStr"
+  $tempDir = Join-Path $TempDir "extract_$dateStr"
   EnsureDir $tempDir
   
   try {
@@ -242,9 +244,13 @@ Log "Extract Additional Tiles (Taif Region)"
 Log "========================================="
 Log "[CONFIG] Source: $TarGzDir"
 Log "[CONFIG] Output: $TilesRoot"
+Log "[CONFIG] Temp Dir: $TempDir"
 Log "[CONFIG] X Range: $XMin-$XMax"
 Log "[CONFIG] Y Range: $YMin-$YMax"
 Log "[CONFIG] Parallel Jobs: $ParallelJobs"
+
+# Ensure temp directory exists
+EnsureDir $TempDir
 
 # Verify source directory exists
 if (-not (Test-Path $TarGzDir)) {
@@ -285,6 +291,7 @@ if ($ParallelJobs -gt 1) {
     $yMin = $using:YMin
     $yMax = $using:YMax
     $use7z = $using:use7z
+    $tempRoot = $using:TempDir
     
     # Redefine functions in parallel scope
     function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" }
@@ -347,7 +354,7 @@ if ($ParallelJobs -gt 1) {
     }
     
     function ExtractXRange {
-      param([string]$ArchivePath, [string]$OutDir, [int]$XMin, [int]$XMax, [int]$YMin, [int]$YMax, [bool]$Use7z)
+      param([string]$ArchivePath, [string]$OutDir, [int]$XMin, [int]$XMax, [int]$YMin, [int]$YMax, [bool]$Use7z, [string]$TempRoot)
       $dateMatch = [regex]::Match([System.IO.Path]::GetFileName($ArchivePath), '(\d{4}-\d{2}-\d{2})')
       if (-not $dateMatch.Success) { Log "[WARN] Could not extract date from: $(Split-Path -Leaf $ArchivePath)"; return }
       $dateStr = $dateMatch.Groups[1].Value
@@ -359,7 +366,7 @@ if ($ParallelJobs -gt 1) {
       if (-not $needsExtraction) { Log "[SKIP] $dateStr - Already has tiles in X=$XMin-$XMax range"; return }
       EnsureDir $finalDir
       Log "[EXTRACT] $dateStr (X=$XMin-$XMax, Y=$YMin-$YMax)"
-      $tempDir = Join-Path $env:TEMP "extract_$dateStr"
+      $tempDir = Join-Path $TempRoot "extract_$dateStr"
       EnsureDir $tempDir
       try {
         if ($Use7z) {
@@ -404,7 +411,7 @@ if ($ParallelJobs -gt 1) {
     }
     
     ExtractXRange -ArchivePath $archive.FullName -OutDir $outDir `
-                  -XMin $xMin -XMax $xMax -YMin $yMin -YMax $yMax -Use7z $use7z
+                  -XMin $xMin -XMax $xMax -YMin $yMin -YMax $yMax -Use7z $use7z -TempRoot $tempRoot
   } -ThrottleLimit $ParallelJobs
   
   $processed = $archives.Count
@@ -414,7 +421,7 @@ if ($ParallelJobs -gt 1) {
   
   foreach ($archive in $archives) {
     ExtractXRange -ArchivePath $archive.FullName -OutDir $TilesRoot `
-                  -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax -Use7z $use7z
+                  -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax -Use7z $use7z -TempRoot $TempDir
     $processed++
   }
 }
