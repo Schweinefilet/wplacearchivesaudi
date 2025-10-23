@@ -7,7 +7,7 @@ param(
   [datetime]$StartDate = ((Get-Date).AddDays(-120)).Date,
   [datetime]$EndDate   = (Get-Date).Date,
   [int]$XMin = 1243,
-  [int]$XMax = 1250,
+  [int]$XMax = 1253,  # Extended to 1253 to include Taif
   [int]$YMin = 875,
   [int]$YMax = 904,
   [int]$ParallelJobs = 3  # Process multiple dates simultaneously (set to 1 to disable)
