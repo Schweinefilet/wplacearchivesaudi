@@ -232,13 +232,109 @@ if ($ParallelJobs -gt 1) {
     $XMin = $using:XMin; $XMax = $using:XMax; $YMin = $using:YMin; $YMax = $using:YMax
     $grouped = $using:grouped; $have = $using:have
     
+    # Re-define functions in parallel scope (PowerShell limitation with $using:function)
     function Log([string]$m){ Write-Host "[$date] $m" }
     function Ensure-Dir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
-    ${function:Remove-EmptyPngs} = $using:function:Remove-EmptyPngs
-    ${function:Filter-YRange} = $using:function:Filter-YRange
-    ${function:Flatten-Numeric} = $using:function:Flatten-Numeric
-    ${function:Get-StripComponents} = $using:function:Get-StripComponents
-    ${function:Extract-OnlyRange} = $using:function:Extract-OnlyRange
+    
+    function Remove-EmptyPngs {
+      param([Parameter(Mandatory)][string]$Root)
+      Get-ChildItem -LiteralPath $Root -Recurse -File -Filter "*.png" -ErrorAction SilentlyContinue | 
+        Where-Object { $_.Length -eq 0 } | 
+        Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+    
+    function Filter-YRange {
+      param([Parameter(Mandatory)][string]$Root,[int]$YMin=875,[int]$YMax=904)
+      $removed = 0
+      Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue | 
+        Where-Object { $_.Name -match '^\d+$' } |
+        ForEach-Object {
+          $xDir = $_.FullName
+          Get-ChildItem -LiteralPath $xDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.BaseName -match '^\d+$') {
+              $y = [int]$_.BaseName
+              if ($y -lt $YMin -or $y -gt $YMax) {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+                $removed++
+              }
+            }
+          }
+        }
+      if ($removed -gt 0) { Log ("FILTER: removed {0} tiles outside y={1}-{2}" -f $removed, $YMin, $YMax) }
+    }
+    
+    function Flatten-Numeric {
+      param([Parameter(Mandatory)][string]$Root,[int]$XMin=1243,[int]$XMax=1250,[int]$YMin=875,[int]$YMax=904)
+      Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.Name -notmatch '^\d+$') {
+          Get-ChildItem -LiteralPath $_.FullName -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^\d+$' -and [int]$_.Name -ge $XMin -and [int]$_.Name -le $XMax } |
+            ForEach-Object {
+              $src = $_.FullName
+              $dst = Join-Path $Root $_.Name
+              if (-not (Test-Path -LiteralPath $dst)) {
+                Move-Item -LiteralPath $src -Destination $dst -Force
+              } else {
+                & robocopy "$src" "$dst" /E /MOV /NFL /NDL /NJH /NJS > $null
+                try { Remove-Item -LiteralPath $src -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+              }
+            }
+          try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+        }
+      }
+      Filter-YRange -Root $Root -YMin $YMin -YMax $YMax
+    }
+    
+    function Get-StripComponents {
+      param([Parameter(Mandatory)][string]$ArchivePath,[int]$XMin=1243,[int]$XMax=1250)
+      $members = & tar -tzf "$ArchivePath" 2>$null; if (-not $members) { $members = & tar -tf "$ArchivePath" }
+      foreach ($m in $members) {
+        if (-not $m -or $m[-1] -eq '/') { continue }
+        $segs = $m.TrimEnd('/') -split '/'
+        for ($i=0; $i -lt $segs.Count; $i++) {
+          if ($segs[$i] -match '^\d+$') {
+            $num = [int]$segs[$i]
+            if ($num -ge $XMin -and $num -le $XMax) { return $i }
+          }
+        }
+      }
+      return 0
+    }
+    
+    function Extract-OnlyRange {
+      param(
+        [Parameter(Mandatory)][string]$ArchivePath,
+        [Parameter(Mandatory)][string]$DestDir,
+        [int]$XMin = 1243,
+        [int]$XMax = 1250,
+        [int]$YMin = 875,
+        [int]$YMax = 904
+      )
+      Ensure-Dir $DestDir
+      $has7z = Get-Command 7z -ErrorAction SilentlyContinue
+      if ($has7z) {
+        $includes = @(); for ($n=$XMin; $n -le $XMax; $n++){ $includes += "-i!*/$n/*.png" }
+        Log ("7Z: selective extract x={0}-{1}, y={2}-{3}" -f $XMin, $XMax, $YMin, $YMax)
+        & 7z x -bd -y -so -- "$ArchivePath" | & 7z x -bd -y -si -ttar "-o$DestDir" @includes
+        if ($LASTEXITCODE -ne 0) { throw "7z selective extract failed with code $LASTEXITCODE" }
+        Flatten-Numeric -Root $DestDir -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax
+        Remove-EmptyPngs -Root $DestDir
+        return
+      }
+      if (-not (Get-Command tar -ErrorAction SilentlyContinue)) { throw "Neither tar nor 7z found in PATH" }
+      $patterns = New-Object System.Collections.Generic.List[string]
+      for ($n=$XMin; $n -le $XMax; $n++){
+        $patterns.Add("*/$n/*.png"); $patterns.Add("*/*/$n/*.png")
+      }
+      $strip = Get-StripComponents -ArchivePath $ArchivePath -XMin $XMin -XMax $XMax
+      Log ("TAR: selective extract x={0}-{1} (strip {2})" -f $XMin, $XMax, $strip)
+      & tar --extract --gzip --file "$ArchivePath" --strip-components=$strip -C "$DestDir" @patterns 2>$null
+      if ($LASTEXITCODE -ne 0) {
+        & tar --extract --file "$ArchivePath" --strip-components=$strip -C "$DestDir" @patterns 2>$null
+      }
+      Filter-YRange -Root $DestDir -YMin $YMin -YMax $YMax
+      Remove-EmptyPngs -Root $DestDir
+    }
     
     try {
       $rel = $grouped[$date].Release
