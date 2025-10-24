@@ -181,22 +181,30 @@ function ProcessDate {
   $dateStr = $Date
   $finalDir = Join-Path $TilesRoot "tiles_$dateStr"
   
-    if ($MissingX.Count -eq 0) {
+  # Flatten any nested arrays first
+  $missingFlat = @()
+  foreach ($m in $MissingX) {
+    if ($m -is [System.Array]) { 
+      $missingFlat += $m 
+    } elseif ($null -ne $m -and $m -ne '') { 
+      $missingFlat += $m 
+    }
+  }
+  
+  if ($missingFlat.Count -eq 0) {
     Log "[$dateStr] Already complete (X=$XMin-$XMax)"
     return
   }
 
-  if ($MissingX.Count -eq ($XMax - $XMin + 1)) {
+  if ($missingFlat.Count -eq ($XMax - $XMin + 1)) {
     Log "[$dateStr] Completely missing, downloading full archive..."
   } else {
-    # Flatten any nested arrays so we don't get 'System.Object[]' when stringifying
-    $missingFlat = @()
-    foreach ($m in $MissingX) {
-      if ($m -is [System.Array]) { $missingFlat += $m } else { $missingFlat += $m }
-    }
     $missingStr = ($missingFlat | ForEach-Object { $_ }) -join ","
     Log "[$dateStr] Missing X folders: $missingStr"
   }
+  
+  # Update MissingX to use the flattened version
+  $MissingX = $missingFlat
   
   # Find release tag
   $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases"
@@ -587,22 +595,30 @@ if ($ParallelJobs -gt 1) {
     $missingX = $dateInfo.MissingX
     $finalDir = Join-Path $tilesRoot "tiles_$dateStr"
     
-    if ($missingX.Count -eq 0) {
+    # Flatten any nested arrays first
+    $missingFlat = @()
+    foreach ($m in $missingX) {
+      if ($m -is [System.Array]) { 
+        $missingFlat += $m 
+      } elseif ($null -ne $m -and $m -ne '') { 
+        $missingFlat += $m 
+      }
+    }
+    
+    if ($missingFlat.Count -eq 0) {
       Log "[$dateStr] Already complete"
       return
     }
 
-    if ($missingX.Count -eq ($xMax - $xMin + 1)) {
+    if ($missingFlat.Count -eq ($xMax - $xMin + 1)) {
       Log "[$dateStr] Completely missing, downloading full archive..."
     } else {
-      # Flatten nested arrays in case the MissingX value is wrapped
-      $missingFlat = @()
-      foreach ($m in $missingX) {
-        if ($m -is [System.Array]) { $missingFlat += $m } else { $missingFlat += $m }
-      }
       $missingStr = ($missingFlat | ForEach-Object { $_ }) -join ","
       Log "[$dateStr] Missing X folders: $missingStr"
     }
+    
+    # Update missingX to use the flattened version
+    $missingX = $missingFlat
     
     # Find release
     $apiUrl = "https://api.github.com/repos/$owner/$repo/releases"
