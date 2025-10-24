@@ -346,23 +346,41 @@ function ProcessDate {
       
     } else {
       # Multi-part archive
+      # First, check if we already have all parts downloaded
+      $allPartsExist = $true
       $parts = @()
+      
       foreach ($asset in $assets) {
         $outFile = Join-Path $TempDir $asset.name
-        
-        # Skip download if file already exists and has correct size
         if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-          Log "  [SKIP] Part already downloaded: $($asset.name)"
           $parts += $outFile
-          continue
+        } else {
+          $allPartsExist = $false
         }
-        
-        Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-        
-        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
-          return
+      }
+      
+      if ($allPartsExist) {
+        Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+      } else {
+        # Download missing parts only
+        $parts = @()
+        foreach ($asset in $assets) {
+          $outFile = Join-Path $TempDir $asset.name
+          
+          # Skip download if file already exists and has correct size
+          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+            Log "  [SKIP] Part already downloaded: $($asset.name)"
+            $parts += $outFile
+            continue
+          }
+          
+          Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+          
+          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
+            return
+          }
+          $parts += $outFile
         }
-        $parts += $outFile
       }
       
       # Join parts
@@ -497,9 +515,12 @@ if ($allDates.Count -eq 0) {
 }
 
 Log "[PLAN] Found $($allDates.Count) dates needing work"
+Log "[INFO] Processing sequentially to minimize disk usage (complete one date before starting next)"
 
-# Process dates
-if ($ParallelJobs -gt 1) {
+# Process dates sequentially to avoid disk space issues
+# Always process one at a time: download -> join -> extract -> move -> cleanup before next date
+if ($false) {
+  # Parallel processing disabled to save disk space
   Log "[PERF] Processing with $ParallelJobs parallel jobs"
   
   $allDates | ForEach-Object -Parallel {
@@ -762,19 +783,37 @@ if ($ParallelJobs -gt 1) {
         
       } else {
         # Multi-part
+        # First, check if we already have all parts downloaded
+        $allPartsExist = $true
         $parts = @()
+        
         foreach ($asset in $assets) {
           $outFile = Join-Path $tempDir $asset.name
-          
           if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-            Log "  [SKIP] Part already downloaded: $($asset.name)"
             $parts += $outFile
-            continue
+          } else {
+            $allPartsExist = $false
           }
-          
-          Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
-          $parts += $outFile
+        }
+        
+        if ($allPartsExist) {
+          Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+        } else {
+          # Download missing parts only
+          $parts = @()
+          foreach ($asset in $assets) {
+            $outFile = Join-Path $tempDir $asset.name
+            
+            if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+              Log "  [SKIP] Part already downloaded: $($asset.name)"
+              $parts += $outFile
+              continue
+            }
+            
+            Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+            if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+            $parts += $outFile
+          }
         }
         
         $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
