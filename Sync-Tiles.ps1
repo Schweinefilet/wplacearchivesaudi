@@ -58,6 +58,31 @@ EnsureDir $TempDir
 Log "[REGION] Extracting x=$XMin-$XMax, y=$YMin-$YMax (Mecca/Medina/Taif)"
 
 # Functions
+function FilterXRange {
+  param([string]$Root, [int]$XMin, [int]$XMax)
+  if (-not (Test-Path $Root)) { return }
+  
+  $removed = 0
+  $removedDirs = 0
+  
+  # Remove any directories at any level that are numeric and outside our X range
+  Get-ChildItem -Path $Root -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -match '^\d+$'
+  } | ForEach-Object {
+    $xVal = [int]($_.Name)
+    if ($xVal -lt $XMin -or $xVal -gt $XMax) {
+      $fileCount = (Get-ChildItem -Path $_.FullName -File -Recurse -ErrorAction SilentlyContinue).Count
+      Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
+      $removed += $fileCount
+      $removedDirs++
+    }
+  }
+  
+  if ($removedDirs -gt 0) { 
+    Log "  [CLEANUP] Removed $removedDirs X directories ($removed files) outside range X=$XMin-$XMax" 
+  }
+}
+
 function FilterYRange {
   param([string]$Root, [int]$YMin, [int]$YMax)
   if (-not (Test-Path $Root)) { return }
@@ -323,6 +348,9 @@ function ProcessDate {
         
         Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
         
+        # Immediately delete unwanted X directories to save space
+        FilterXRange -Root $tempExtract -XMin $XMin -XMax $XMax
+        
       } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
         # Single part of a multi-part archive (only .aa exists)
         $asset = $assets[0]
@@ -360,6 +388,9 @@ function ProcessDate {
         }
         
         Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
+        
+        # Immediately delete unwanted X directories to save space
+        FilterXRange -Root $tempExtract -XMin $XMin -XMax $XMax
         
       } else {
         # Multi-part archive
@@ -443,6 +474,9 @@ function ProcessDate {
       }
       
       Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
+      
+      # Immediately delete unwanted X directories to save space
+      FilterXRange -Root $tempExtract -XMin $XMin -XMax $XMax
       }
     }
     
@@ -560,6 +594,31 @@ if ($ParallelJobs -gt 1) {
     # Redefine functions in parallel scope
     function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" }
     function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+    
+    function FilterXRange {
+      param([string]$Root, [int]$XMin, [int]$XMax)
+      if (-not (Test-Path $Root)) { return }
+      
+      $removed = 0
+      $removedDirs = 0
+      
+      # Remove any directories at any level that are numeric and outside our X range
+      Get-ChildItem -Path $Root -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -match '^\d+$'
+      } | ForEach-Object {
+        $xVal = [int]($_.Name)
+        if ($xVal -lt $XMin -or $xVal -gt $XMax) {
+          $fileCount = (Get-ChildItem -Path $_.FullName -File -Recurse -ErrorAction SilentlyContinue).Count
+          Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
+          $removed += $fileCount
+          $removedDirs++
+        }
+      }
+      
+      if ($removedDirs -gt 0) { 
+        Log "  [CLEANUP] Removed $removedDirs X directories ($removed files) outside range X=$XMin-$XMax" 
+      }
+    }
     
     function FilterYRange {
       param([string]$Root, [int]$YMin, [int]$YMax)
@@ -786,10 +845,11 @@ if ($ParallelJobs -gt 1) {
             Push-Location $tempExtract
             try { tar -xzf "$outFile" 2>$null } finally { Pop-Location }
           }
-        
-        Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
-        
-        } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
+          
+          Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
+          
+          # Immediately delete unwanted X directories to save space
+          FilterXRange -Root $tempExtract -XMin $xMin -XMax $xMax        } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
           # Single .aa part (treat as complete)
           $asset = $assets[0]
           $baseName = $asset.name -replace '\.aa$', ''
@@ -818,6 +878,9 @@ if ($ParallelJobs -gt 1) {
           }
 
           Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
+          
+          # Immediately delete unwanted X directories to save space
+          FilterXRange -Root $tempExtract -XMin $xMin -XMax $xMax
           
         } else {
           # Multi-part
@@ -882,6 +945,9 @@ if ($ParallelJobs -gt 1) {
           }
           
           Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
+          
+          # Immediately delete unwanted X directories to save space
+          FilterXRange -Root $tempExtract -XMin $xMin -XMax $xMax
         }
       }
       
