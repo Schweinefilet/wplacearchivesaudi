@@ -379,7 +379,8 @@ function ProcessDate {
         Log "  [DEBUG] No top-level entries found in $tempExtract"
       }
     } catch {
-      Log "  [DEBUG] Failed to list $tempExtract: $($_.Exception.Message)"
+      $errMsg = $_.Exception.Message
+      Log "  [DEBUG] Failed to list ${tempExtract}: $errMsg"
     }
 
     # Flatten structure
@@ -739,7 +740,8 @@ if ($ParallelJobs -gt 1) {
           Log "  [DEBUG] No top-level entries found in $tempExtract"
         }
       } catch {
-        Log "  [DEBUG] Failed to list $tempExtract: $($_.Exception.Message)"
+        $errMsg = $_.Exception.Message
+        Log "  [DEBUG] Failed to list ${tempExtract}: $errMsg"
       }
 
       # Flatten and move
