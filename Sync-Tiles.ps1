@@ -269,117 +269,134 @@ function ProcessDate {
   
   # Download and extract
   $tempExtract = Join-Path $TempDir "extract_$dateStr"
-  EnsureDir $tempExtract
+  
+  # Check if extraction already completed (script was interrupted after extraction)
+  $alreadyExtracted = $false
+  if (Test-Path $tempExtract) {
+    $extractedFiles = Get-ChildItem -Path $tempExtract -Recurse -File -ErrorAction SilentlyContinue
+    if ($extractedFiles -and $extractedFiles.Count -gt 0) {
+      Log "  [SKIP] Already extracted directory found, proceeding to move tiles"
+      $alreadyExtracted = $true
+    } else {
+      # Empty directory, remove it
+      Remove-Item -LiteralPath $tempExtract -Force -Recurse -ErrorAction SilentlyContinue
+    }
+  }
+  
+  if (-not $alreadyExtracted) {
+    EnsureDir $tempExtract
+  }
   
   try {
-    if ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz$' -and $assets[0].name -notmatch '\.(aa|ab)$') {
-      # Single complete archive
-      $asset = $assets[0]
-      $outFile = Join-Path $TempDir $asset.name
-      
-      # Skip download if file already exists and has correct size
-      $needsDownload = $true
-      if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-        Log "  [SKIP] Archive already downloaded: $($asset.name)"
-        $needsDownload = $false
-      }
-      
-      if ($needsDownload) {
-        Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
-          return
-        }
-      }
-      
-      # Extract directly
-      Log "  [EXTRACT] Extracting archive..."
-      if ($Use7z) {
-        & 7z x "$outFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
-      } else {
-        Push-Location $tempExtract
-        try {
-          tar -xzf "$outFile" 2>$null
-        } finally {
-          Pop-Location
-        }
-      }
-      
-      Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
-      
-    } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
-      # Single part of a multi-part archive (only .aa exists)
-      $asset = $assets[0]
-      $baseName = $asset.name -replace '\.aa$', ''
-      $outFile = Join-Path $TempDir $asset.name
-      
-      # Skip download if file already exists and has correct size
-      $needsDownload = $true
-      if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-        Log "  [SKIP] Single part already downloaded: $($asset.name)"
-        $needsDownload = $false
-      }
-      
-      if ($needsDownload) {
-        Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
-          return
-        }
-      }
-      
-      # Treat as complete archive (no joining needed)
-      $joinedFile = Join-Path $TempDir $baseName
-      Move-Item -LiteralPath $outFile -Destination $joinedFile -Force
-      
-      Log "  [EXTRACT] Extracting archive..."
-      if ($Use7z) {
-        & 7z x "$joinedFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
-      } else {
-        Push-Location $tempExtract
-        try {
-          tar -xzf "$joinedFile" 2>$null
-        } finally {
-          Pop-Location
-        }
-      }
-      
-      Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
-      
-    } else {
-      # Multi-part archive
-      $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
-      $joinedFile = Join-Path $TempDir $baseName
-      
-      # Check if already joined file exists
-      if (Test-Path $joinedFile) {
-        Log "  [SKIP] Joined archive already exists: $baseName, proceeding to extract"
-      } else {
-        # Check if we already have all parts downloaded
-        $allPartsExist = $true
-        $parts = @()
+    if (-not $alreadyExtracted) {
+      if ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz$' -and $assets[0].name -notmatch '\.(aa|ab)$') {
+        # Single complete archive
+        $asset = $assets[0]
+        $outFile = Join-Path $TempDir $asset.name
         
-        foreach ($asset in $assets) {
-          $outFile = Join-Path $TempDir $asset.name
-          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-            $parts += $outFile
-          } else {
-            $allPartsExist = $false
+        # Skip download if file already exists and has correct size
+        $needsDownload = $true
+        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+          Log "  [SKIP] Archive already downloaded: $($asset.name)"
+          $needsDownload = $false
+        }
+        
+        if ($needsDownload) {
+          Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
+            return
           }
         }
         
-        if ($allPartsExist) {
-          Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+        # Extract directly
+        Log "  [EXTRACT] Extracting archive..."
+        if ($Use7z) {
+          & 7z x "$outFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
         } else {
-          # Download missing parts only
+          Push-Location $tempExtract
+          try {
+            tar -xzf "$outFile" 2>$null
+          } finally {
+            Pop-Location
+          }
+        }
+        
+        Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
+        
+      } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
+        # Single part of a multi-part archive (only .aa exists)
+        $asset = $assets[0]
+        $baseName = $asset.name -replace '\.aa$', ''
+        $outFile = Join-Path $TempDir $asset.name
+        
+        # Skip download if file already exists and has correct size
+        $needsDownload = $true
+        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+          Log "  [SKIP] Single part already downloaded: $($asset.name)"
+          $needsDownload = $false
+        }
+        
+        if ($needsDownload) {
+          Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
+            return
+          }
+        }
+        
+        # Treat as complete archive (no joining needed)
+        $joinedFile = Join-Path $TempDir $baseName
+        Move-Item -LiteralPath $outFile -Destination $joinedFile -Force
+        
+        Log "  [EXTRACT] Extracting archive..."
+        if ($Use7z) {
+          & 7z x "$joinedFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
+        } else {
+          Push-Location $tempExtract
+          try {
+            tar -xzf "$joinedFile" 2>$null
+          } finally {
+            Pop-Location
+          }
+        }
+        
+        Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
+        
+      } else {
+        # Multi-part archive
+        $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
+        $joinedFile = Join-Path $TempDir $baseName
+        
+        # Check if already joined file exists
+        if (Test-Path $joinedFile) {
+          Log "  [SKIP] Joined archive already exists: $baseName, proceeding to extract"
+        } else {
+          # Check if we already have all parts downloaded
+          $allPartsExist = $true
           $parts = @()
+          
           foreach ($asset in $assets) {
             $outFile = Join-Path $TempDir $asset.name
-            
-            # Skip download if file already exists and has correct size
             if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-              Log "  [SKIP] Part already downloaded: $($asset.name)"
               $parts += $outFile
-              continue
+            } else {
+              $allPartsExist = $false
             }
+          }
+          
+          if ($allPartsExist) {
+            Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+          } else {
+            # Download missing parts only
+            $parts = @()
+            foreach ($asset in $assets) {
+              $outFile = Join-Path $TempDir $asset.name
+              
+              # Skip download if file already exists and has correct size
+              if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+                Log "  [SKIP] Part already downloaded: $($asset.name)"
+                $parts += $outFile
+                continue
+              }
             
             Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
             
@@ -426,9 +443,10 @@ function ProcessDate {
       }
       
       Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
+      }
     }
     
-      # Debug: show what was extracted at top level (helps diagnose missing X dirs)
+    # Debug: show what was extracted at top level (helps diagnose missing X dirs)
     try {
       $topEntries = Get-ChildItem -Path $tempExtract -Force -ErrorAction SilentlyContinue | Select-Object -First 20
       if ($topEntries -and $topEntries.Count -gt 0) {
@@ -725,128 +743,146 @@ if ($ParallelJobs -gt 1) {
     
     # Download and extract
     $tempExtract = Join-Path $tempDir "extract_$dateStr"
-    EnsureDir $tempExtract
+    
+    # Check if extraction already completed (script was interrupted after extraction)
+    $alreadyExtracted = $false
+    if (Test-Path $tempExtract) {
+      $extractedFiles = Get-ChildItem -Path $tempExtract -Recurse -File -ErrorAction SilentlyContinue
+      if ($extractedFiles -and $extractedFiles.Count -gt 0) {
+        Log "  [SKIP] Already extracted directory found, proceeding to move tiles"
+        $alreadyExtracted = $true
+      } else {
+        # Empty directory, remove it
+        Remove-Item -LiteralPath $tempExtract -Force -Recurse -ErrorAction SilentlyContinue
+      }
+    }
+    
+    if (-not $alreadyExtracted) {
+      EnsureDir $tempExtract
+    }
     
     try {
-      if ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz$' -and $assets[0].name -notmatch '\.(aa|ab)$') {
-        # Single complete archive
-        $asset = $assets[0]
-        $outFile = Join-Path $tempDir $asset.name
-        
-        $needsDownload = $true
-        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-          Log "  [SKIP] Archive already downloaded: $($asset.name)"
-          $needsDownload = $false
-        }
-        
-        if ($needsDownload) {
-          Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
-        }
-        
-        Log "  [EXTRACT] Extracting..."
-        if ($use7z) {
-          & 7z x "$outFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
-        } else {
-          Push-Location $tempExtract
-          try { tar -xzf "$outFile" 2>$null } finally { Pop-Location }
-        }
+      if (-not $alreadyExtracted) {
+        if ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz$' -and $assets[0].name -notmatch '\.(aa|ab)$') {
+          # Single complete archive
+          $asset = $assets[0]
+          $outFile = Join-Path $tempDir $asset.name
+          
+          $needsDownload = $true
+          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+            Log "  [SKIP] Archive already downloaded: $($asset.name)"
+            $needsDownload = $false
+          }
+          
+          if ($needsDownload) {
+            Log "  [DOWNLOAD] Single archive: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+            if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+          }
+          
+          Log "  [EXTRACT] Extracting..."
+          if ($use7z) {
+            & 7z x "$outFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
+          } else {
+            Push-Location $tempExtract
+            try { tar -xzf "$outFile" 2>$null } finally { Pop-Location }
+          }
         
         Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
         
-      } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
-        # Single .aa part (treat as complete)
-        $asset = $assets[0]
-        $baseName = $asset.name -replace '\.aa$', ''
-        $outFile = Join-Path $tempDir $asset.name
-        
-        $needsDownload = $true
-        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-          Log "  [SKIP] Single part already downloaded: $($asset.name)"
-          $needsDownload = $false
-        }
-        
-        if ($needsDownload) {
-          Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
-        }
-        
-        $joinedFile = Join-Path $tempDir $baseName
-        Move-Item -LiteralPath $outFile -Destination $joinedFile -Force
-        
-        Log "  [EXTRACT] Extracting..."
-        if ($use7z) {
-          & 7z x "$joinedFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
-        } else {
-          Push-Location $tempExtract
-          try { tar -xzf "$joinedFile" 2>$null } finally { Pop-Location }
-        }
-
-        Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
-        
-      } else {
-        # Multi-part
-        $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
-        $joinedFile = Join-Path $tempDir $baseName
-        
-        # Check if already joined file exists
-        if (Test-Path $joinedFile) {
-          Log "  [SKIP] Joined archive already exists: $baseName, proceeding to extract"
-        } else {
-          # Check if we already have all parts downloaded
-          $allPartsExist = $true
-          $parts = @()
+        } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
+          # Single .aa part (treat as complete)
+          $asset = $assets[0]
+          $baseName = $asset.name -replace '\.aa$', ''
+          $outFile = Join-Path $tempDir $asset.name
           
-          foreach ($asset in $assets) {
-            $outFile = Join-Path $tempDir $asset.name
-            if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-              $parts += $outFile
-            } else {
-              $allPartsExist = $false
-            }
+          $needsDownload = $true
+          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+            Log "  [SKIP] Single part already downloaded: $($asset.name)"
+            $needsDownload = $false
           }
           
-          if ($allPartsExist) {
-            Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+          if ($needsDownload) {
+            Log "  [DOWNLOAD] Single part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+            if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+          }
+          
+          $joinedFile = Join-Path $tempDir $baseName
+          Move-Item -LiteralPath $outFile -Destination $joinedFile -Force
+          
+          Log "  [EXTRACT] Extracting..."
+          if ($use7z) {
+            & 7z x "$joinedFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
           } else {
-            # Download missing parts only
+            Push-Location $tempExtract
+            try { tar -xzf "$joinedFile" 2>$null } finally { Pop-Location }
+          }
+
+          Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
+          
+        } else {
+          # Multi-part
+          $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
+          $joinedFile = Join-Path $tempDir $baseName
+          
+          # Check if already joined file exists
+          if (Test-Path $joinedFile) {
+            Log "  [SKIP] Joined archive already exists: $baseName, proceeding to extract"
+          } else {
+            # Check if we already have all parts downloaded
+            $allPartsExist = $true
             $parts = @()
+            
             foreach ($asset in $assets) {
               $outFile = Join-Path $tempDir $asset.name
-              
               if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-                Log "  [SKIP] Part already downloaded: $($asset.name)"
                 $parts += $outFile
-                continue
+              } else {
+                $allPartsExist = $false
               }
-              
-              Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-              if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
-              $parts += $outFile
             }
+            
+            if ($allPartsExist) {
+              Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+            } else {
+              # Download missing parts only
+              $parts = @()
+              foreach ($asset in $assets) {
+                $outFile = Join-Path $tempDir $asset.name
+                
+                if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+                  Log "  [SKIP] Part already downloaded: $($asset.name)"
+                  $parts += $outFile
+                  continue
+                }
+                
+                Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+                if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+                $parts += $outFile
+              }
+            }
+            
+            Log "  [JOIN] Combining $($parts.Count) parts..."
+            $outStream = [System.IO.File]::OpenWrite($joinedFile)
+            try {
+              foreach ($part in ($parts | Sort-Object)) {
+                $inStream = [System.IO.File]::OpenRead($part)
+                try { $inStream.CopyTo($outStream) } finally { $inStream.Close() }
+              }
+            } finally { $outStream.Close() }
+            
+            foreach ($part in $parts) { Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue }
           }
           
-          Log "  [JOIN] Combining $($parts.Count) parts..."
-          $outStream = [System.IO.File]::OpenWrite($joinedFile)
-          try {
-            foreach ($part in ($parts | Sort-Object)) {
-              $inStream = [System.IO.File]::OpenRead($part)
-              try { $inStream.CopyTo($outStream) } finally { $inStream.Close() }
-            }
-          } finally { $outStream.Close() }
+          Log "  [EXTRACT] Extracting..."
+          if ($use7z) {
+            & 7z x "$joinedFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
+          } else {
+            Push-Location $tempExtract
+            try { tar -xzf "$joinedFile" 2>$null } finally { Pop-Location }
+          }
           
-          foreach ($part in $parts) { Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue }
+          Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
         }
-        
-        Log "  [EXTRACT] Extracting..."
-        if ($use7z) {
-          & 7z x "$joinedFile" -o"$tempExtract" -y -bb0 -bd | Out-Null
-        } else {
-          Push-Location $tempExtract
-          try { tar -xzf "$joinedFile" 2>$null } finally { Pop-Location }
-        }
-        
-        Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
       }
       
       # Debug: show top-level extracted entries (parallel)
