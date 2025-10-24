@@ -7,6 +7,9 @@
 <style>
   html,body,#map{height:100%;margin:0}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  /* Fix for lines between tiles */
+  .leaflet-tile-container img{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;transform:translateZ(0);backface-visibility:hidden}
+  .leaflet-tile{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges}
   #toolbar{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:30000;display:flex;flex-direction:column;gap:10px}
   #topbar{position:absolute;left:70px;right:10px;top:10px;z-index:30000;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .sqbtn,.btn4k,.btnNav{border-radius:10px;border:1px solid #0006;background:rgba(20,24,31,.88);color:#e7e7e7;cursor:pointer;font-weight:700}
