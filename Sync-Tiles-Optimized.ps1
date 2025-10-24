@@ -5,7 +5,7 @@ param(
   [string]$Repo        = "wplace-archives",
   [string]$TilesRoot   = "tiles",  # Updated to relative path for Linux
   [string]$TempDir     = "/tmp/wplace-archive",  # Updated for Linux
-  [datetime]$StartDate = ((Get-Date).AddDays(-120)).Date,
+  [datetime]$StartDate = (Get-Date -Year 2025 -Month 8 -Day 9).Date,  # First available date
   [datetime]$EndDate   = (Get-Date).Date,
   [int]$XMin = 1243,
   [int]$XMax = 1253,
