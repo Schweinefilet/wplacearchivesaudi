@@ -520,13 +520,11 @@ if ($allDates.Count -eq 0) {
 }
 
 Log "[PLAN] Found $($allDates.Count) dates needing work"
-Log "[INFO] Processing sequentially to minimize disk usage (complete one date before starting next)"
 
-# Process dates sequentially to avoid disk space issues
-# Always process one at a time: download -> join -> extract -> move -> cleanup before next date
-if ($false) {
-  # Parallel processing disabled to save disk space
+# Process dates
+if ($ParallelJobs -gt 1) {
   Log "[PERF] Processing with $ParallelJobs parallel jobs"
+  Log "[INFO] Using existing files where possible to minimize disk usage"
   
   $allDates | ForEach-Object -Parallel {
     $dateInfo = $_
