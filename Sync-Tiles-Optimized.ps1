@@ -100,9 +100,40 @@ function DownloadAsset {
   if ($Token) { $headers['Authorization'] = "token $Token" }
   
   try {
-    Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers $headers -UseBasicParsing
-    return $true
+    # For large files, show download progress
+    $fileName = [System.IO.Path]::GetFileName($OutFile)
+    
+    $webClient = New-Object System.Net.WebClient
+    foreach ($key in $headers.Keys) {
+      $webClient.Headers.Add($key, $headers[$key])
+    }
+    
+    # Register progress event
+    $progressHandler = {
+      param($sender, $e)
+      if ($e.TotalBytesToReceive -gt 0) {
+        $percentComplete = [math]::Round(($e.BytesReceived / $e.TotalBytesToReceive) * 100, 1)
+        $receivedMB = [math]::Round($e.BytesReceived / 1MB, 2)
+        $totalMB = [math]::Round($e.TotalBytesToReceive / 1MB, 2)
+        
+        Write-Progress -Id 1 -Activity "Downloading $fileName" `
+                       -Status "$receivedMB MB / $totalMB MB" `
+                       -PercentComplete $percentComplete
+      }
+    }
+    
+    Register-ObjectEvent -InputObject $webClient -EventName DownloadProgressChanged -Action $progressHandler | Out-Null
+    
+    try {
+      $webClient.DownloadFile($Url, $OutFile)
+      Write-Progress -Id 1 -Activity "Downloading $fileName" -Completed
+      return $true
+    } finally {
+      Get-EventSubscriber | Where-Object { $_.SourceObject -eq $webClient } | Unregister-Event
+      $webClient.Dispose()
+    }
   } catch {
+    Write-Progress -Id 1 -Activity "Downloading" -Completed
     LogError "Download failed: $($_.Exception.Message)"
     return $false
   }
@@ -392,6 +423,22 @@ Log "Found $($allDates.Count) dates needing work"
 Log "Max parallel jobs: $ParallelJobs (to limit disk usage)"
 Write-Host ""
 
+# Initialize progress tracking
+$script:processedCount = 0
+$script:totalCount = $allDates.Count
+$script:lockObject = [System.Object]::new()
+
+function UpdateProgress {
+  param([string]$DateStr, [string]$Status)
+  
+  $script:processedCount++
+  $percentComplete = [math]::Round(($script:processedCount / $script:totalCount) * 100, 1)
+  
+  Write-Progress -Activity "Syncing Tiles" `
+                 -Status "$Status - $DateStr ($script:processedCount/$script:totalCount)" `
+                 -PercentComplete $percentComplete
+}
+
 # Process dates with limited parallelism
 if ($ParallelJobs -gt 1) {
   $allDates | ForEach-Object -Parallel {
@@ -405,6 +452,8 @@ if ($ParallelJobs -gt 1) {
     $token = $using:token
     $owner = $using:Owner
     $repo = $using:Repo
+    $lockObject = $using:lockObject
+    $totalCount = $using:totalCount
     
     # Redefine functions in parallel scope
     function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Cyan }
@@ -412,6 +461,23 @@ if ($ParallelJobs -gt 1) {
     function LogWarn([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Yellow }
     function LogError([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Red }
     function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+    
+    function UpdateProgressParallel {
+      param([string]$DateStr, [string]$Status)
+      
+      # Thread-safe progress update
+      [System.Threading.Monitor]::Enter($lockObject)
+      try {
+        $script:processedCount = if ($null -eq $script:processedCount) { 1 } else { $script:processedCount + 1 }
+        $percentComplete = [math]::Round(($script:processedCount / $totalCount) * 100, 1)
+        
+        Write-Progress -Activity "Syncing Tiles" `
+                       -Status "$Status - $DateStr ($script:processedCount/$totalCount)" `
+                       -PercentComplete $percentComplete
+      } finally {
+        [System.Threading.Monitor]::Exit($lockObject)
+      }
+    }
     
     function GetAllReleasesLocal {
       param([string]$Owner, [string]$Repo, [string]$Token)
@@ -438,10 +504,41 @@ if ($ParallelJobs -gt 1) {
       param([string]$Url, [string]$OutFile, [string]$Token)
       $headers = @{ 'Accept' = 'application/octet-stream' }
       if ($Token) { $headers['Authorization'] = "token $Token" }
+      
       try {
-        Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers $headers -UseBasicParsing
-        return $true
+        $fileName = [System.IO.Path]::GetFileName($OutFile)
+        
+        $webClient = New-Object System.Net.WebClient
+        foreach ($key in $headers.Keys) {
+          $webClient.Headers.Add($key, $headers[$key])
+        }
+        
+        # Register progress event for parallel downloads
+        $progressHandler = {
+          param($sender, $e)
+          if ($e.TotalBytesToReceive -gt 0) {
+            $percentComplete = [math]::Round(($e.BytesReceived / $e.TotalBytesToReceive) * 100, 1)
+            $receivedMB = [math]::Round($e.BytesReceived / 1MB, 2)
+            $totalMB = [math]::Round($e.TotalBytesToReceive / 1MB, 2)
+            
+            Write-Progress -Id 1 -Activity "Downloading $fileName" `
+                           -Status "$receivedMB MB / $totalMB MB" `
+                           -PercentComplete $percentComplete
+          }
+        }
+        
+        Register-ObjectEvent -InputObject $webClient -EventName DownloadProgressChanged -Action $progressHandler | Out-Null
+        
+        try {
+          $webClient.DownloadFile($Url, $OutFile)
+          Write-Progress -Id 1 -Activity "Downloading $fileName" -Completed
+          return $true
+        } finally {
+          Get-EventSubscriber | Where-Object { $_.SourceObject -eq $webClient } | Unregister-Event
+          $webClient.Dispose()
+        }
       } catch {
+        Write-Progress -Id 1 -Activity "Downloading" -Completed
         LogError "Download failed: $($_.Exception.Message)"
         return $false
       }
@@ -494,6 +591,7 @@ if ($ParallelJobs -gt 1) {
     
     if ($missingFlat.Count -eq 0) { 
       LogSuccess "[$dateStr] ✓ Complete"
+      UpdateProgressParallel -DateStr $dateStr -Status "Skipped (complete)"
       return
     }
 
@@ -504,6 +602,8 @@ if ($ParallelJobs -gt 1) {
     } else {
       Log "[$dateStr] Downloading all X folders ($xMin-$xMax)"
     }
+    
+    UpdateProgressParallel -DateStr $dateStr -Status "Processing"
     
     $releases = GetAllReleasesLocal -Owner $owner -Repo $repo -Token $token
     if ($releases.Count -eq 0) { return }
@@ -591,6 +691,7 @@ if ($ParallelJobs -gt 1) {
       
       $finalCount = (Get-ChildItem -Path $finalDir -File -Filter "*.png" -Recurse).Count
       LogSuccess "  ✓ Added $moved tiles | Total: $finalCount tiles"
+      UpdateProgressParallel -DateStr $dateStr -Status "Completed"
       
     } finally {
       if (Test-Path $dateTempDir) {
@@ -599,14 +700,29 @@ if ($ParallelJobs -gt 1) {
     }
   } -ThrottleLimit $ParallelJobs
   
+  # Clear progress bar after completion
+  Write-Progress -Activity "Syncing Tiles" -Completed
+  
 } else {
   Log "Processing sequentially..."
+  
+  $currentIndex = 0
   foreach ($dateInfo in $allDates) {
+    $currentIndex++
+    $percentComplete = [math]::Round(($currentIndex / $allDates.Count) * 100, 1)
+    
+    Write-Progress -Activity "Syncing Tiles" `
+                   -Status "Processing $($dateInfo.Date) ($currentIndex/$($allDates.Count))" `
+                   -PercentComplete $percentComplete
+    
     ProcessDateOptimized -Date $dateInfo.Date -MissingX $dateInfo.MissingX -ExistingX $dateInfo.ExistingX `
                          -TilesRoot $TilesRoot -TempDir $TempDir `
                          -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax `
                          -Token $token -Owner $Owner -Repo $Repo
   }
+  
+  # Clear progress bar after completion
+  Write-Progress -Activity "Syncing Tiles" -Completed
 }
 
 Write-Host "`n" -NoNewline
