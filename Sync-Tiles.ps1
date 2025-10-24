@@ -210,13 +210,21 @@ function ProcessDate {
     return
   }
   
-  $release = $releases | Where-Object { $_.tag_name -match $dateStr } | Select-Object -First 1
-  if (-not $release) {
+  # Find all releases for this date and pick the latest one
+  $matchingReleases = $releases | Where-Object { $_.tag_name -match $dateStr }
+  if ($matchingReleases.Count -eq 0) {
     Log "  [WARN] No release found for $dateStr"
     return
   }
   
-  Log "  [FOUND] Release: $($release.tag_name)"
+  # Sort by tag_name descending (later timestamps sort higher) and take the first
+  $release = $matchingReleases | Sort-Object tag_name -Descending | Select-Object -First 1
+  
+  if ($matchingReleases.Count -gt 1) {
+    Log "  [FOUND] Release: $($release.tag_name) (picked latest of $($matchingReleases.Count) releases)"
+  } else {
+    Log "  [FOUND] Release: $($release.tag_name)"
+  }
   
   # Get archive assets
   $assets = $release.assets | Where-Object { $_.name -match '\.tar\.gz\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$' }
@@ -608,13 +616,21 @@ if ($ParallelJobs -gt 1) {
       return
     }
     
-    $release = $releases | Where-Object { $_.tag_name -match $dateStr } | Select-Object -First 1
-    if (-not $release) {
+    # Find all releases for this date and pick the latest one
+    $matchingReleases = $releases | Where-Object { $_.tag_name -match $dateStr }
+    if ($matchingReleases.Count -eq 0) {
       Log "  [WARN] No release found for $dateStr"
       return
     }
     
-    Log "  [FOUND] Release: $($release.tag_name)"
+    # Sort by tag_name descending (later timestamps sort higher) and take the first
+    $release = $matchingReleases | Sort-Object tag_name -Descending | Select-Object -First 1
+    
+    if ($matchingReleases.Count -gt 1) {
+      Log "  [FOUND] Release: $($release.tag_name) (picked latest of $($matchingReleases.Count) releases)"
+    } else {
+      Log "  [FOUND] Release: $($release.tag_name)"
+    }
     
     # Get assets
     $assets = $release.assets | Where-Object { $_.name -match '\.tar\.gz\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$' }
