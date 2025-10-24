@@ -346,65 +346,70 @@ function ProcessDate {
       
     } else {
       # Multi-part archive
-      # First, check if we already have all parts downloaded
-      $allPartsExist = $true
-      $parts = @()
-      
-      foreach ($asset in $assets) {
-        $outFile = Join-Path $TempDir $asset.name
-        if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-          $parts += $outFile
-        } else {
-          $allPartsExist = $false
-        }
-      }
-      
-      if ($allPartsExist) {
-        Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
-      } else {
-        # Download missing parts only
-        $parts = @()
-        foreach ($asset in $assets) {
-          $outFile = Join-Path $TempDir $asset.name
-          
-          # Skip download if file already exists and has correct size
-          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-            Log "  [SKIP] Part already downloaded: $($asset.name)"
-            $parts += $outFile
-            continue
-          }
-          
-          Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-          
-          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
-            return
-          }
-          $parts += $outFile
-        }
-      }
-      
-      # Join parts
       $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
       $joinedFile = Join-Path $TempDir $baseName
       
-      Log "  [JOIN] Combining $($parts.Count) parts..."
-      $outStream = [System.IO.File]::OpenWrite($joinedFile)
-      try {
-        foreach ($part in ($parts | Sort-Object)) {
-          $inStream = [System.IO.File]::OpenRead($part)
-          try {
-            $inStream.CopyTo($outStream)
-          } finally {
-            $inStream.Close()
+      # Check if already joined file exists
+      if (Test-Path $joinedFile) {
+        Log "  [SKIP] Joined archive already exists: $baseName, proceeding to extract"
+      } else {
+        # Check if we already have all parts downloaded
+        $allPartsExist = $true
+        $parts = @()
+        
+        foreach ($asset in $assets) {
+          $outFile = Join-Path $TempDir $asset.name
+          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+            $parts += $outFile
+          } else {
+            $allPartsExist = $false
           }
         }
-      } finally {
-        $outStream.Close()
-      }
-      
-      # Clean up parts
-      foreach ($part in $parts) {
-        Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue
+        
+        if ($allPartsExist) {
+          Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+        } else {
+          # Download missing parts only
+          $parts = @()
+          foreach ($asset in $assets) {
+            $outFile = Join-Path $TempDir $asset.name
+            
+            # Skip download if file already exists and has correct size
+            if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+              Log "  [SKIP] Part already downloaded: $($asset.name)"
+              $parts += $outFile
+              continue
+            }
+            
+            Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+            
+            if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $Token)) {
+              return
+            }
+            $parts += $outFile
+          }
+        }
+        
+        # Join parts
+        Log "  [JOIN] Combining $($parts.Count) parts..."
+        $outStream = [System.IO.File]::OpenWrite($joinedFile)
+        try {
+          foreach ($part in ($parts | Sort-Object)) {
+            $inStream = [System.IO.File]::OpenRead($part)
+            try {
+              $inStream.CopyTo($outStream)
+            } finally {
+              $inStream.Close()
+            }
+          }
+        } finally {
+          $outStream.Close()
+        }
+        
+        # Clean up parts
+        foreach ($part in $parts) {
+          Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue
+        }
       }
       
       # Extract
@@ -783,52 +788,57 @@ if ($false) {
         
       } else {
         # Multi-part
-        # First, check if we already have all parts downloaded
-        $allPartsExist = $true
-        $parts = @()
-        
-        foreach ($asset in $assets) {
-          $outFile = Join-Path $tempDir $asset.name
-          if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-            $parts += $outFile
-          } else {
-            $allPartsExist = $false
-          }
-        }
-        
-        if ($allPartsExist) {
-          Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
-        } else {
-          # Download missing parts only
-          $parts = @()
-          foreach ($asset in $assets) {
-            $outFile = Join-Path $tempDir $asset.name
-            
-            if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
-              Log "  [SKIP] Part already downloaded: $($asset.name)"
-              $parts += $outFile
-              continue
-            }
-            
-            Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
-            if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
-            $parts += $outFile
-          }
-        }
-        
         $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
         $joinedFile = Join-Path $tempDir $baseName
         
-        Log "  [JOIN] Combining $($parts.Count) parts..."
-        $outStream = [System.IO.File]::OpenWrite($joinedFile)
-        try {
-          foreach ($part in ($parts | Sort-Object)) {
-            $inStream = [System.IO.File]::OpenRead($part)
-            try { $inStream.CopyTo($outStream) } finally { $inStream.Close() }
+        # Check if already joined file exists
+        if (Test-Path $joinedFile) {
+          Log "  [SKIP] Joined archive already exists: $baseName, proceeding to extract"
+        } else {
+          # Check if we already have all parts downloaded
+          $allPartsExist = $true
+          $parts = @()
+          
+          foreach ($asset in $assets) {
+            $outFile = Join-Path $tempDir $asset.name
+            if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+              $parts += $outFile
+            } else {
+              $allPartsExist = $false
+            }
           }
-        } finally { $outStream.Close() }
-        
-        foreach ($part in $parts) { Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue }
+          
+          if ($allPartsExist) {
+            Log "  [SKIP] All $($parts.Count) parts already downloaded, proceeding to join"
+          } else {
+            # Download missing parts only
+            $parts = @()
+            foreach ($asset in $assets) {
+              $outFile = Join-Path $tempDir $asset.name
+              
+              if ((Test-Path $outFile) -and (Get-Item $outFile).Length -eq $asset.size) {
+                Log "  [SKIP] Part already downloaded: $($asset.name)"
+                $parts += $outFile
+                continue
+              }
+              
+              Log "  [DOWNLOAD] Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+              if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $outFile -Token $token)) { return }
+              $parts += $outFile
+            }
+          }
+          
+          Log "  [JOIN] Combining $($parts.Count) parts..."
+          $outStream = [System.IO.File]::OpenWrite($joinedFile)
+          try {
+            foreach ($part in ($parts | Sort-Object)) {
+              $inStream = [System.IO.File]::OpenRead($part)
+              try { $inStream.CopyTo($outStream) } finally { $inStream.Close() }
+            }
+          } finally { $outStream.Close() }
+          
+          foreach ($part in $parts) { Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue }
+        }
         
         Log "  [EXTRACT] Extracting..."
         if ($use7z) {
