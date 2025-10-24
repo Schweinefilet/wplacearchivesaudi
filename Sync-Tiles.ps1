@@ -85,31 +85,53 @@ function FilterYRange {
 function FlattenToXY {
   param([string]$Root, [int]$XMin, [int]$XMax)
   if (-not (Test-Path $Root)) { return }
-  Get-ChildItem -Path $Root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-    if ($_.Name -notmatch '^\d+$') {
-      $prefixDir = $_
-      Get-ChildItem -Path $prefixDir.FullName -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        if ($_.Name -match '^\d+$') {
-          $xVal = [int]($_.Name)
-          if ($xVal -ge $XMin -and $xVal -le $XMax) {
-            $srcXDir = $_.FullName
-            $dstXDir = Join-Path $Root $_.Name
-            if (Test-Path $dstXDir) {
-              Get-ChildItem -Path $srcXDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
-                $dstFile = Join-Path $dstXDir $_.Name
-                if (-not (Test-Path $dstFile)) {
-                  Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force -ErrorAction SilentlyContinue
-                }
-              }
-            } else {
-              Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force -ErrorAction SilentlyContinue
-            }
-          }
+  
+  # Recursively find all directories named as integers in the X range, regardless of depth
+  $foundXDirs = @{}
+  Get-ChildItem -Path $Root -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -match '^\d+$'
+  } | ForEach-Object {
+    $xVal = [int]($_.Name)
+    if ($xVal -ge $XMin -and $xVal -le $XMax) {
+      # Keep track of deepest instance of each X value (in case of duplicates)
+      if (-not $foundXDirs.ContainsKey($xVal) -or $_.FullName.Length -gt $foundXDirs[$xVal].Length) {
+        $foundXDirs[$xVal] = $_.FullName
+      }
+    }
+  }
+  
+  # Move each found X directory to the root level
+  foreach ($xVal in $foundXDirs.Keys) {
+    $srcXDir = $foundXDirs[$xVal]
+    $dstXDir = Join-Path $Root $xVal
+    
+    if ($srcXDir -eq $dstXDir) {
+      # Already at root level, skip
+      continue
+    }
+    
+    if (Test-Path $dstXDir) {
+      # Merge files
+      Get-ChildItem -Path $srcXDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
+        $dstFile = Join-Path $dstXDir $_.Name
+        if (-not (Test-Path $dstFile)) {
+          Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force -ErrorAction SilentlyContinue
         }
       }
-      if (-not (Get-ChildItem -Path $prefixDir.FullName -Recurse -File -ErrorAction SilentlyContinue)) {
-        Remove-Item -LiteralPath $prefixDir.FullName -Force -Recurse -ErrorAction SilentlyContinue
-      }
+      # Remove source after merge
+      Remove-Item -LiteralPath $srcXDir -Force -Recurse -ErrorAction SilentlyContinue
+    } else {
+      # Move entire directory
+      Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force -ErrorAction SilentlyContinue
+    }
+  }
+  
+  # Clean up any non-numeric directories at root level (prefixes that are now empty or irrelevant)
+  Get-ChildItem -Path $Root -Directory -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -notmatch '^\d+$'
+  } | ForEach-Object {
+    if (-not (Get-ChildItem -Path $_.FullName -Recurse -File -ErrorAction SilentlyContinue)) {
+      Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
     }
   }
 }
@@ -159,15 +181,20 @@ function ProcessDate {
   $dateStr = $Date
   $finalDir = Join-Path $TilesRoot "tiles_$dateStr"
   
-  if ($MissingX.Count -eq 0) {
+    if ($MissingX.Count -eq 0) {
     Log "[$dateStr] Already complete (X=$XMin-$XMax)"
     return
   }
-  
+
   if ($MissingX.Count -eq ($XMax - $XMin + 1)) {
     Log "[$dateStr] Completely missing, downloading full archive..."
   } else {
-    $missingStr = $MissingX -join ","
+    # Flatten any nested arrays so we don't get 'System.Object[]' when stringifying
+    $missingFlat = @()
+    foreach ($m in $MissingX) {
+      if ($m -is [System.Array]) { $missingFlat += $m } else { $missingFlat += $m }
+    }
+    $missingStr = ($missingFlat | ForEach-Object { $_ }) -join ","
     Log "[$dateStr] Missing X folders: $missingStr"
   }
   
@@ -342,16 +369,29 @@ function ProcessDate {
       Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
     }
     
+      # Debug: show what was extracted at top level (helps diagnose missing X dirs)
+    try {
+      $topEntries = Get-ChildItem -Path $tempExtract -Force -ErrorAction SilentlyContinue | Select-Object -First 20
+      if ($topEntries -and $topEntries.Count -gt 0) {
+        $names = $topEntries | ForEach-Object { $_.Name } -join ","
+        Log "  [DEBUG] Extracted top-level entries: $names"
+      } else {
+        Log "  [DEBUG] No top-level entries found in $tempExtract"
+      }
+    } catch {
+      Log "  [DEBUG] Failed to list $tempExtract: $($_.Exception.Message)"
+    }
+
     # Flatten structure
     FlattenToXY -Root $tempExtract -XMin $XMin -XMax $XMax
     
     # Move only missing X folders
     EnsureDir $finalDir
     $moved = 0
-    foreach ($x in $MissingX) {
+      foreach ($x in $MissingX) {
       # Ensure $x is a valid value
       if ([string]::IsNullOrEmpty($x)) { continue }
-      
+
       $srcXDir = Join-Path $tempExtract ([string]$x)
       if (Test-Path $srcXDir) {
         $dstXDir = Join-Path $finalDir ([string]$x)
@@ -369,6 +409,8 @@ function ProcessDate {
           $movedCount = (Get-ChildItem -Path $dstXDir -File -Filter "*.png" -Recurse -ErrorAction SilentlyContinue).Count
           $moved += $movedCount
         }
+      } else {
+        Log "  [MISS] Extracted archive did not contain X=$x (looking for $srcXDir)"
       }
     }
     
@@ -467,31 +509,53 @@ if ($ParallelJobs -gt 1) {
     function FlattenToXY {
       param([string]$Root, [int]$XMin, [int]$XMax)
       if (-not (Test-Path $Root)) { return }
-      Get-ChildItem -Path $Root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        if ($_.Name -notmatch '^\d+$') {
-          $prefixDir = $_
-          Get-ChildItem -Path $prefixDir.FullName -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.Name -match '^\d+$') {
-              $xVal = [int]($_.Name)
-              if ($xVal -ge $XMin -and $xVal -le $XMax) {
-                $srcXDir = $_.FullName
-                $dstXDir = Join-Path $Root $_.Name
-                if (Test-Path $dstXDir) {
-                  Get-ChildItem -Path $srcXDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
-                    $dstFile = Join-Path $dstXDir $_.Name
-                    if (-not (Test-Path $dstFile)) {
-                      Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force -ErrorAction SilentlyContinue
-                    }
-                  }
-                } else {
-                  Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force -ErrorAction SilentlyContinue
-                }
-              }
+      
+      # Recursively find all directories named as integers in the X range, regardless of depth
+      $foundXDirs = @{}
+      Get-ChildItem -Path $Root -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -match '^\d+$'
+      } | ForEach-Object {
+        $xVal = [int]($_.Name)
+        if ($xVal -ge $XMin -and $xVal -le $XMax) {
+          # Keep track of deepest instance of each X value (in case of duplicates)
+          if (-not $foundXDirs.ContainsKey($xVal) -or $_.FullName.Length -gt $foundXDirs[$xVal].Length) {
+            $foundXDirs[$xVal] = $_.FullName
+          }
+        }
+      }
+      
+      # Move each found X directory to the root level
+      foreach ($xVal in $foundXDirs.Keys) {
+        $srcXDir = $foundXDirs[$xVal]
+        $dstXDir = Join-Path $Root $xVal
+        
+        if ($srcXDir -eq $dstXDir) {
+          # Already at root level, skip
+          continue
+        }
+        
+        if (Test-Path $dstXDir) {
+          # Merge files
+          Get-ChildItem -Path $srcXDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
+            $dstFile = Join-Path $dstXDir $_.Name
+            if (-not (Test-Path $dstFile)) {
+              Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force -ErrorAction SilentlyContinue
             }
           }
-          if (-not (Get-ChildItem -Path $prefixDir.FullName -Recurse -File -ErrorAction SilentlyContinue)) {
-            Remove-Item -LiteralPath $prefixDir.FullName -Force -Recurse -ErrorAction SilentlyContinue
-          }
+          # Remove source after merge
+          Remove-Item -LiteralPath $srcXDir -Force -Recurse -ErrorAction SilentlyContinue
+        } else {
+          # Move entire directory
+          Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force -ErrorAction SilentlyContinue
+        }
+      }
+      
+      # Clean up any non-numeric directories at root level (prefixes that are now empty or irrelevant)
+      Get-ChildItem -Path $Root -Directory -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -notmatch '^\d+$'
+      } | ForEach-Object {
+        if (-not (Get-ChildItem -Path $_.FullName -Recurse -File -ErrorAction SilentlyContinue)) {
+          Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
         }
       }
     }
@@ -518,11 +582,16 @@ if ($ParallelJobs -gt 1) {
       Log "[$dateStr] Already complete"
       return
     }
-    
+
     if ($missingX.Count -eq ($xMax - $xMin + 1)) {
       Log "[$dateStr] Completely missing, downloading full archive..."
     } else {
-      $missingStr = $missingX -join ","
+      # Flatten nested arrays in case the MissingX value is wrapped
+      $missingFlat = @()
+      foreach ($m in $missingX) {
+        if ($m -is [System.Array]) { $missingFlat += $m } else { $missingFlat += $m }
+      }
+      $missingStr = ($missingFlat | ForEach-Object { $_ }) -join ","
       Log "[$dateStr] Missing X folders: $missingStr"
     }
     
@@ -615,7 +684,7 @@ if ($ParallelJobs -gt 1) {
           Push-Location $tempExtract
           try { tar -xzf "$joinedFile" 2>$null } finally { Pop-Location }
         }
-        
+
         Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
         
       } else {
@@ -660,6 +729,19 @@ if ($ParallelJobs -gt 1) {
         Remove-Item -LiteralPath $joinedFile -Force -ErrorAction SilentlyContinue
       }
       
+      # Debug: show top-level extracted entries (parallel)
+      try {
+        $topEntries = Get-ChildItem -Path $tempExtract -Force -ErrorAction SilentlyContinue | Select-Object -First 20
+        if ($topEntries -and $topEntries.Count -gt 0) {
+          $names = $topEntries | ForEach-Object { $_.Name } -join ","
+          Log "  [DEBUG] Extracted top-level entries: $names"
+        } else {
+          Log "  [DEBUG] No top-level entries found in $tempExtract"
+        }
+      } catch {
+        Log "  [DEBUG] Failed to list $tempExtract: $($_.Exception.Message)"
+      }
+
       # Flatten and move
       FlattenToXY -Root $tempExtract -XMin $xMin -XMax $xMax
       
@@ -667,7 +749,7 @@ if ($ParallelJobs -gt 1) {
       $moved = 0
       foreach ($x in $missingX) {
         if ([string]::IsNullOrEmpty($x)) { continue }
-        
+
         $srcXDir = Join-Path $tempExtract ([string]$x)
         if (Test-Path $srcXDir) {
           $dstXDir = Join-Path $finalDir ([string]$x)
@@ -684,6 +766,8 @@ if ($ParallelJobs -gt 1) {
             $movedCount = (Get-ChildItem -Path $dstXDir -File -Filter "*.png" -Recurse -ErrorAction SilentlyContinue).Count
             $moved += $movedCount
           }
+        } else {
+          Log "  [MISS] Extracted archive did not contain X=$x (looking for $srcXDir)"
         }
       }
       
