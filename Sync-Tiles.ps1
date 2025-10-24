@@ -148,6 +148,31 @@ function GetMissingXFolders {
   return ,$missing
 }
 
+function GetAllReleases {
+  param([string]$Owner, [string]$Repo, [string]$Token)
+  
+  $allReleases = @()
+  $page = 1
+  $perPage = 100
+  $headers = @{ 'Accept' = 'application/vnd.github.v3+json' }
+  if ($Token) { $headers['Authorization'] = "token $Token" }
+  
+  do {
+    $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases?per_page=$perPage&page=$page"
+    try {
+      $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
+      if ($releases.Count -eq 0) { break }
+      $allReleases += $releases
+      $page++
+    } catch {
+      Log "  [ERROR] Failed to fetch releases page $page : $($_.Exception.Message)"
+      break
+    }
+  } while ($releases.Count -eq $perPage)
+  
+  return $allReleases
+}
+
 function DownloadAsset {
   param([string]$Url, [string]$OutFile, [string]$Token)
   $headers = @{ 'Accept' = 'application/octet-stream' }
@@ -206,22 +231,17 @@ function ProcessDate {
   # Update MissingX to use the flattened version
   $MissingX = $missingFlat
   
-  # Find release tag
-  $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases"
-  $headers = @{ 'Accept' = 'application/vnd.github.v3+json' }
-  if ($Token) { $headers['Authorization'] = "token $Token" }
-  
-  try {
-    $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
-  } catch {
-    Log "  [ERROR] Failed to fetch releases: $($_.Exception.Message)"
+  # Find release tag - fetch all releases with pagination
+  $releases = GetAllReleases -Owner $Owner -Repo $Repo -Token $Token
+  if ($releases.Count -eq 0) {
+    Log "  [ERROR] Could not fetch any releases from repository"
     return
   }
   
   # Find all releases for this date and pick the latest one
   $matchingReleases = $releases | Where-Object { $_.tag_name -match $dateStr }
   if ($matchingReleases.Count -eq 0) {
-    Log "  [WARN] No release found for $dateStr"
+    Log "  [WARN] No release found for $dateStr (searched $($releases.Count) releases)"
     return
   }
   
@@ -620,22 +640,42 @@ if ($ParallelJobs -gt 1) {
     # Update missingX to use the flattened version
     $missingX = $missingFlat
     
-    # Find release
-    $apiUrl = "https://api.github.com/repos/$owner/$repo/releases"
-    $headers = @{ 'Accept' = 'application/vnd.github.v3+json' }
-    if ($token) { $headers['Authorization'] = "token $token" }
+    # Fetch all releases with pagination (parallel job helper)
+    function GetAllReleasesLocal {
+      param([string]$Owner, [string]$Repo, [string]$Token)
+      $allReleases = @()
+      $page = 1
+      $perPage = 100
+      $headers = @{ 'Accept' = 'application/vnd.github.v3+json' }
+      if ($Token) { $headers['Authorization'] = "token $Token" }
+      
+      do {
+        $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases?per_page=$perPage&page=$page"
+        try {
+          $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
+          if ($releases.Count -eq 0) { break }
+          $allReleases += $releases
+          $page++
+        } catch {
+          Log "  [ERROR] Failed to fetch releases page $page"
+          break
+        }
+      } while ($releases.Count -eq $perPage)
+      
+      return $allReleases
+    }
     
-    try {
-      $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
-    } catch {
-      Log "  [ERROR] Failed to fetch releases: $($_.Exception.Message)"
+    # Find release - fetch all releases with pagination
+    $releases = GetAllReleasesLocal -Owner $owner -Repo $repo -Token $token
+    if ($releases.Count -eq 0) {
+      Log "  [ERROR] Could not fetch any releases from repository"
       return
     }
     
     # Find all releases for this date and pick the latest one
     $matchingReleases = $releases | Where-Object { $_.tag_name -match $dateStr }
     if ($matchingReleases.Count -eq 0) {
-      Log "  [WARN] No release found for $dateStr"
+      Log "  [WARN] No release found for $dateStr (searched $($releases.Count) releases)"
       return
     }
     
