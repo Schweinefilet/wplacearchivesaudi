@@ -7,9 +7,9 @@
 <style>
   html,body,#map{height:100%;margin:0}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-  /* Fix for lines between tiles - overlap by 0.7px */
-  .leaflet-tile-container img{margin:-0.35px!important;max-width:none!important}
-  .leaflet-tile{margin:-0.35px!important;max-width:none!important}
+  /* Fix for lines between tiles - overlap by 1.8px */
+  .leaflet-tile-container img{margin:-0.9px!important;max-width:none!important}
+  .leaflet-tile{margin:-0.9px!important;max-width:none!important}
   #toolbar{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:30000;display:flex;flex-direction:column;gap:10px}
   #topbar{position:absolute;left:70px;right:10px;top:10px;z-index:30000;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .sqbtn,.btn4k,.btnNav{border-radius:10px;border:1px solid #0006;background:rgba(20,24,31,.88);color:#e7e7e7;cursor:pointer;font-weight:700}
@@ -43,6 +43,37 @@
   #welcomeBox strong{color:#000}
   #welcomeBox .btnClose{display:block;width:100%;margin-top:24px;padding:12px;background:#14181f;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;transition:background .2s}
   #welcomeBox .btnClose:hover{background:#2a3040}
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    #toolbar{left:5px;gap:6px;top:auto;bottom:80px;transform:none}
+    .sqbtn{min-width:44px;height:44px;font-size:11px}
+    #topbar{left:5px;right:5px;top:5px;gap:6px}
+    #hudwrap{padding:6px 8px;flex-wrap:wrap}
+    #time{width:100%;min-width:200px}
+    .btn4k{min-width:70px;height:36px;padding:0 8px;font-size:12px}
+    .btnNav{min-width:40px;height:36px}
+    .pill{font-size:12px;padding:3px 8px}
+    #dbgToggle{left:5px;bottom:5px}
+    #debugBox{left:5px;right:5px;bottom:40px;max-width:none;font-size:10px}
+    #frame .badge{font-size:10px;padding:2px 6px}
+    #welcomeBox{padding:24px;max-width:95%}
+    #welcomeBox h2{font-size:22px}
+    #welcomeBox p,#welcomeBox ul{font-size:14px}
+    body.minimal #hudMini{font-size:12px;padding:6px 8px}
+  }
+  @media (max-width: 480px) {
+    .sqbtn{min-width:40px;height:40px;font-size:10px}
+    #hudwrap{gap:4px}
+    .btn4k{min-width:60px;height:32px;font-size:11px}
+    .btnNav{min-width:36px;height:32px}
+    #welcomeBox{padding:20px}
+    #welcomeBox h2{font-size:20px}
+  }
+  /* Touch improvements */
+  @media (hover: none) and (pointer: coarse) {
+    .sqbtn,.btn4k,.btnNav{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+    button{-webkit-tap-highlight-color:transparent}
+  }
 </style>
 </head>
 <body>
