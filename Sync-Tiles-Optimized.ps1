@@ -1,0 +1,614 @@
+# Sync-Tiles-Optimized.ps1
+# Space-optimized version with streaming extraction and enhanced logging
+param(
+  [string]$Owner       = "murolem",
+  [string]$Repo        = "wplace-archives",
+  [string]$TilesRoot   = "tiles",  # Updated to relative path for Linux
+  [string]$TempDir     = "/tmp/wplace-archive",  # Updated for Linux
+  [datetime]$StartDate = ((Get-Date).AddDays(-120)).Date,
+  [datetime]$EndDate   = (Get-Date).Date,
+  [int]$XMin = 1243,
+  [int]$XMax = 1253,
+  [int]$YMin = 875,
+  [int]$YMax = 904,
+  [int]$ParallelJobs = 2  # Reduced to limit disk usage
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Cyan }
+function LogSuccess([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Green }
+function LogWarn([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Yellow }
+function LogError([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Red }
+function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+
+# Network tuning
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::DefaultConnectionLimit = 100
+[Net.ServicePointManager]::Expect100Continue = $false
+[Net.ServicePointManager]::UseNagleAlgorithm = $false
+$ProgressPreference = 'SilentlyContinue'
+
+# Check for tar (required for streaming)
+$hasTar = (Get-Command "tar" -ErrorAction SilentlyContinue) -ne $null
+if (-not $hasTar) {
+  LogError "[ERROR] tar not found. This script requires tar for streaming extraction."
+  exit 1
+}
+Log "Using tar for streaming extraction"
+
+# Check for GitHub token
+$token = $env:GITHUB_TOKEN
+if ($token) { Log "Using GITHUB_TOKEN for API access" }
+else { LogWarn "No GITHUB_TOKEN found. Rate limits may apply." }
+
+EnsureDir $TilesRoot
+EnsureDir $TempDir
+
+Log "Region: X=$XMin-$XMax, Y=$YMin-$YMax (Mecca/Medina/Taif)"
+
+# Functions
+function GetMissingXFolders {
+  param([string]$DateDir, [int]$XMin, [int]$XMax)
+  $existing = @()
+  $missing = @()
+  
+  for ($x = $XMin; $x -le $XMax; $x++) {
+    $xDir = Join-Path $DateDir $x
+    if (Test-Path $xDir) {
+      $existing += $x
+    } else {
+      $missing += $x
+    }
+  }
+  
+  return @{
+    Existing = $existing
+    Missing = $missing
+  }
+}
+
+function GetAllReleases {
+  param([string]$Owner, [string]$Repo, [string]$Token)
+  
+  $allReleases = @()
+  $page = 1
+  $perPage = 100
+  $headers = @{ 'Accept' = 'application/vnd.github.v3+json' }
+  if ($Token) { $headers['Authorization'] = "token $Token" }
+  
+  do {
+    $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases?per_page=$perPage&page=$page"
+    try {
+      $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
+      if ($releases.Count -eq 0) { break }
+      $allReleases += $releases
+      $page++
+    } catch {
+      LogError "Failed to fetch releases page $page : $($_.Exception.Message)"
+      break
+    }
+  } while ($releases.Count -eq $perPage)
+  
+  return $allReleases
+}
+
+function DownloadAsset {
+  param([string]$Url, [string]$OutFile, [string]$Token)
+  $headers = @{ 'Accept' = 'application/octet-stream' }
+  if ($Token) { $headers['Authorization'] = "token $Token" }
+  
+  try {
+    Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers $headers -UseBasicParsing
+    return $true
+  } catch {
+    LogError "Download failed: $($_.Exception.Message)"
+    return $false
+  }
+}
+
+function StreamExtractFiltered {
+  param(
+    [string]$ArchiveFile,
+    [string]$OutputDir,
+    [int]$XMin,
+    [int]$XMax,
+    [int]$YMin,
+    [int]$YMax,
+    [array]$OnlyX = $null  # If specified, only extract these X values
+  )
+  
+  $filterFile = Join-Path $TempDir "filter_$(Get-Random).txt"
+  
+  try {
+    Log "  Scanning archive contents..."
+    $listing = & tar -tzf "$ArchiveFile" 2>$null
+    
+    # Filter to only tiles in our region (and specific X folders if requested)
+    $wanted = $listing | Where-Object {
+      if ($_ -match '/(\d+)/(\d+)\.png$') {
+        $x = [int]$Matches[1]
+        $y = [int]$Matches[2]
+        
+        # Check Y range first
+        if ($y -lt $YMin -or $y -gt $YMax) { return $false }
+        
+        # If OnlyX specified, check if this X is in the list
+        if ($OnlyX -and $OnlyX.Count -gt 0) {
+          return ($OnlyX -contains $x)
+        }
+        
+        # Otherwise check X range
+        return ($x -ge $XMin -and $x -le $XMax)
+      }
+      return $false
+    }
+    
+    if ($wanted.Count -eq 0) {
+      LogWarn "  No matching tiles found in archive"
+      return 0
+    }
+    
+    # Write filter file
+    $wanted | Set-Content -LiteralPath $filterFile -Encoding UTF8
+    
+    Log "  Extracting $($wanted.Count) tiles (filtered stream)..."
+    
+    # Extract only filtered files, stripping path components
+    & tar -xzf "$ArchiveFile" -C "$OutputDir" --strip-components=1 -T "$filterFile" 2>$null
+    
+    return $wanted.Count
+    
+  } finally {
+    if (Test-Path $filterFile) {
+      Remove-Item -LiteralPath $filterFile -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+
+function ProcessDateOptimized {
+  param(
+    [string]$Date,
+    [array]$MissingX,
+    [array]$ExistingX,
+    [string]$TilesRoot,
+    [string]$TempDir,
+    [int]$XMin,
+    [int]$XMax,
+    [int]$YMin,
+    [int]$YMax,
+    [string]$Token,
+    [string]$Owner,
+    [string]$Repo
+  )
+  
+  $dateStr = $Date
+  $finalDir = Join-Path $TilesRoot "tiles_$dateStr"
+  
+  # Flatten arrays
+  $missingFlat = @()
+  foreach ($m in $MissingX) {
+    if ($m -is [System.Array]) { $missingFlat += $m }
+    elseif ($null -ne $m -and $m -ne '') { $missingFlat += $m }
+  }
+  
+  if ($missingFlat.Count -eq 0) {
+    LogSuccess "[$dateStr] ✓ Complete (all X folders exist)"
+    return
+  }
+
+  # Enhanced logging showing what's missing
+  if ($ExistingX.Count -gt 0) {
+    $existingStr = ($ExistingX | ForEach-Object { $_ }) -join ","
+    $missingStr = ($missingFlat | ForEach-Object { $_ }) -join ","
+    Log "[$dateStr] Existing: $existingStr | Missing: $missingStr"
+  } else {
+    Log "[$dateStr] Completely missing - downloading all X folders ($XMin-$XMax)"
+  }
+  
+  # Find release
+  $releases = GetAllReleases -Owner $Owner -Repo $Repo -Token $Token
+  if ($releases.Count -eq 0) {
+    LogError "  Could not fetch any releases"
+    return
+  }
+  
+  $matchingReleases = $releases | Where-Object { $_.tag_name -match $dateStr }
+  if ($matchingReleases.Count -eq 0) {
+    LogWarn "  No release found for $dateStr"
+    return
+  }
+  
+  $release = $matchingReleases | Sort-Object tag_name -Descending | Select-Object -First 1
+  Log "  Found release: $($release.tag_name)"
+  
+  # Get archive assets
+  $assets = $release.assets | Where-Object { $_.name -match '\.tar\.gz\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$' }
+  if ($assets.Count -eq 0) {
+    $assets = $release.assets | Where-Object { $_.name -match '\.tar\.gz$' -and $_.name -notmatch '\.(aa|ab|ac)$' }
+  }
+  
+  if ($assets.Count -eq 0) {
+    LogWarn "  No archive assets found"
+    return
+  }
+  
+  # Use unique temp directory for this date
+  $dateTempDir = Join-Path $TempDir "work_$dateStr"
+  EnsureDir $dateTempDir
+  EnsureDir $finalDir
+  
+  try {
+    $archiveFile = $null
+    
+    # Download and join if needed
+    if ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz$' -and $assets[0].name -notmatch '\.(aa|ab)$') {
+      # Single complete archive
+      $asset = $assets[0]
+      $archiveFile = Join-Path $dateTempDir $asset.name
+      
+      Log "  Downloading: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+      if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $archiveFile -Token $Token)) {
+        return
+      }
+      
+    } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
+      # Single .aa part
+      $asset = $assets[0]
+      $archiveFile = Join-Path $dateTempDir ($asset.name -replace '\.aa$', '')
+      
+      Log "  Downloading: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+      $tempPart = Join-Path $dateTempDir $asset.name
+      if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $tempPart -Token $Token)) {
+        return
+      }
+      Move-Item -LiteralPath $tempPart -Destination $archiveFile -Force
+      
+    } else {
+      # Multi-part - download and join with immediate cleanup
+      $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
+      $archiveFile = Join-Path $dateTempDir $baseName
+      
+      Log "  Downloading and joining $($assets.Count) parts..."
+      
+      # Stream parts directly into joined file
+      $outStream = [System.IO.File]::OpenWrite($archiveFile)
+      try {
+        foreach ($asset in ($assets | Sort-Object name)) {
+          Log "    Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
+          
+          $tempPart = Join-Path $dateTempDir $asset.name
+          if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $tempPart -Token $Token)) {
+            throw "Failed to download $($asset.name)"
+          }
+          
+          # Append to joined file and delete part immediately
+          $inStream = [System.IO.File]::OpenRead($tempPart)
+          try {
+            $inStream.CopyTo($outStream)
+          } finally {
+            $inStream.Close()
+          }
+          
+          Remove-Item -LiteralPath $tempPart -Force -ErrorAction SilentlyContinue
+        }
+      } finally {
+        $outStream.Close()
+      }
+      
+      Log "  Joined archive: $([math]::Round((Get-Item $archiveFile).Length/1MB, 2)) MB"
+    }
+    
+    # Extract ONLY the missing X folders using streaming
+    $extracted = StreamExtractFiltered -ArchiveFile $archiveFile -OutputDir $dateTempDir `
+                                       -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax `
+                                       -OnlyX $missingFlat
+    
+    # Delete archive immediately after extraction
+    Remove-Item -LiteralPath $archiveFile -Force -ErrorAction SilentlyContinue
+    
+    if ($extracted -eq 0) {
+      LogWarn "  No tiles extracted"
+      return
+    }
+    
+    # Move extracted tiles to final location
+    $moved = 0
+    foreach ($x in $missingFlat) {
+      if ([string]::IsNullOrEmpty($x)) { continue }
+      
+      $srcXDir = Join-Path $dateTempDir ([string]$x)
+      if (Test-Path $srcXDir) {
+        $dstXDir = Join-Path $finalDir ([string]$x)
+        
+        if (Test-Path $dstXDir) {
+          # Merge (shouldn't happen but handle it)
+          Get-ChildItem -Path $srcXDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
+            $dstFile = Join-Path $dstXDir $_.Name
+            if (-not (Test-Path $dstFile)) {
+              Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force
+              $moved++
+            }
+          }
+        } else {
+          # Move entire folder
+          Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force
+          $movedCount = (Get-ChildItem -Path $dstXDir -File -Filter "*.png" -Recurse -ErrorAction SilentlyContinue).Count
+          $moved += $movedCount
+        }
+      } else {
+        LogWarn "  X=$x not found in archive"
+      }
+    }
+    
+    $finalCount = (Get-ChildItem -Path $finalDir -File -Filter "*.png" -Recurse -ErrorAction SilentlyContinue).Count
+    LogSuccess "  ✓ Added $moved tiles | Total: $finalCount tiles"
+    
+  } finally {
+    # Clean up all temp files for this date
+    if (Test-Path $dateTempDir) {
+      Remove-Item -LiteralPath $dateTempDir -Force -Recurse -ErrorAction SilentlyContinue
+    }
+  }
+}
+
+# Main execution
+Write-Host "`n=========================================" -ForegroundColor Magenta
+Write-Host "  Tile Sync - Space-Optimized Version" -ForegroundColor Magenta
+Write-Host "=========================================`n" -ForegroundColor Magenta
+
+# Scan existing tiles
+$allDates = @()
+for ($d = $StartDate; $d -le $EndDate; $d = $d.AddDays(1)) {
+  $dateStr = $d.ToString('yyyy-MM-dd')
+  $dateDir = Join-Path $TilesRoot "tiles_$dateStr"
+  
+  if (Test-Path $dateDir) {
+    $status = GetMissingXFolders -DateDir $dateDir -XMin $XMin -XMax $XMax
+    if ($status.Missing.Count -gt 0) {
+      $allDates += @{
+        Date = $dateStr
+        MissingX = $status.Missing
+        ExistingX = $status.Existing
+      }
+    }
+  } else {
+    # Entire date missing
+    $allDates += @{
+      Date = $dateStr
+      MissingX = @($XMin..$XMax)
+      ExistingX = @()
+    }
+  }
+}
+
+if ($allDates.Count -eq 0) {
+  LogSuccess "✓ All dates are complete! Nothing to do."
+  exit 0
+}
+
+Log "Found $($allDates.Count) dates needing work"
+Log "Max parallel jobs: $ParallelJobs (to limit disk usage)"
+Write-Host ""
+
+# Process dates with limited parallelism
+if ($ParallelJobs -gt 1) {
+  $allDates | ForEach-Object -Parallel {
+    $dateInfo = $_
+    $tilesRoot = $using:TilesRoot
+    $tempDir = $using:TempDir
+    $xMin = $using:XMin
+    $xMax = $using:XMax
+    $yMin = $using:YMin
+    $yMax = $using:YMax
+    $token = $using:token
+    $owner = $using:Owner
+    $repo = $using:Repo
+    
+    # Redefine functions in parallel scope
+    function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Cyan }
+    function LogSuccess([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Green }
+    function LogWarn([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Yellow }
+    function LogError([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Red }
+    function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+    
+    function GetAllReleasesLocal {
+      param([string]$Owner, [string]$Repo, [string]$Token)
+      $allReleases = @()
+      $page = 1
+      $perPage = 100
+      $headers = @{ 'Accept' = 'application/vnd.github.v3+json' }
+      if ($Token) { $headers['Authorization'] = "token $Token" }
+      
+      do {
+        $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases?per_page=$perPage&page=$page"
+        try {
+          $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
+          if ($releases.Count -eq 0) { break }
+          $allReleases += $releases
+          $page++
+        } catch { break }
+      } while ($releases.Count -eq $perPage)
+      
+      return $allReleases
+    }
+    
+    function DownloadAsset {
+      param([string]$Url, [string]$OutFile, [string]$Token)
+      $headers = @{ 'Accept' = 'application/octet-stream' }
+      if ($Token) { $headers['Authorization'] = "token $Token" }
+      try {
+        Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers $headers -UseBasicParsing
+        return $true
+      } catch {
+        LogError "Download failed: $($_.Exception.Message)"
+        return $false
+      }
+    }
+    
+    function StreamExtractFilteredLocal {
+      param([string]$ArchiveFile, [string]$OutputDir, [int]$XMin, [int]$XMax, [int]$YMin, [int]$YMax, [array]$OnlyX = $null)
+      
+      $filterFile = Join-Path $tempDir "filter_$(Get-Random).txt"
+      try {
+        Log "  Scanning archive..."
+        $listing = & tar -tzf "$ArchiveFile" 2>$null
+        
+        $wanted = $listing | Where-Object {
+          if ($_ -match '/(\d+)/(\d+)\.png$') {
+            $x = [int]$Matches[1]
+            $y = [int]$Matches[2]
+            if ($y -lt $YMin -or $y -gt $YMax) { return $false }
+            if ($OnlyX -and $OnlyX.Count -gt 0) { return ($OnlyX -contains $x) }
+            return ($x -ge $XMin -and $x -le $XMax)
+          }
+          return $false
+        }
+        
+        if ($wanted.Count -eq 0) { return 0 }
+        
+        $wanted | Set-Content -LiteralPath $filterFile -Encoding UTF8
+        Log "  Extracting $($wanted.Count) tiles..."
+        & tar -xzf "$ArchiveFile" -C "$OutputDir" --strip-components=1 -T "$filterFile" 2>$null
+        
+        return $wanted.Count
+      } finally {
+        if (Test-Path $filterFile) {
+          Remove-Item -LiteralPath $filterFile -Force -ErrorAction SilentlyContinue
+        }
+      }
+    }
+    
+    # Process this date
+    $dateStr = $dateInfo.Date
+    $missingX = $dateInfo.MissingX
+    $existingX = $dateInfo.ExistingX
+    $finalDir = Join-Path $tilesRoot "tiles_$dateStr"
+    
+    $missingFlat = @()
+    foreach ($m in $missingX) {
+      if ($m -is [System.Array]) { $missingFlat += $m }
+      elseif ($null -ne $m -and $m -ne '') { $missingFlat += $m }
+    }
+    
+    if ($missingFlat.Count -eq 0) { 
+      LogSuccess "[$dateStr] ✓ Complete"
+      return
+    }
+
+    if ($existingX.Count -gt 0) {
+      $existingStr = ($existingX | ForEach-Object { $_ }) -join ","
+      $missingStr = ($missingFlat | ForEach-Object { $_ }) -join ","
+      Log "[$dateStr] Existing: $existingStr | Missing: $missingStr"
+    } else {
+      Log "[$dateStr] Downloading all X folders ($xMin-$xMax)"
+    }
+    
+    $releases = GetAllReleasesLocal -Owner $owner -Repo $repo -Token $token
+    if ($releases.Count -eq 0) { return }
+    
+    $matchingReleases = $releases | Where-Object { $_.tag_name -match $dateStr }
+    if ($matchingReleases.Count -eq 0) { return }
+    
+    $release = $matchingReleases | Sort-Object tag_name -Descending | Select-Object -First 1
+    Log "  Found: $($release.tag_name)"
+    
+    $assets = $release.assets | Where-Object { $_.name -match '\.tar\.gz\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$' }
+    if ($assets.Count -eq 0) {
+      $assets = $release.assets | Where-Object { $_.name -match '\.tar\.gz$' -and $_.name -notmatch '\.(aa|ab|ac)$' }
+    }
+    if ($assets.Count -eq 0) { return }
+    
+    $dateTempDir = Join-Path $tempDir "work_$dateStr"
+    EnsureDir $dateTempDir
+    EnsureDir $finalDir
+    
+    try {
+      $archiveFile = $null
+      
+      if ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz$' -and $assets[0].name -notmatch '\.(aa|ab)$') {
+        $asset = $assets[0]
+        $archiveFile = Join-Path $dateTempDir $asset.name
+        Log "  Downloading: $($asset.name)"
+        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $archiveFile -Token $token)) { return }
+        
+      } elseif ($assets.Count -eq 1 -and $assets[0].name -match '\.tar\.gz\.aa$') {
+        $asset = $assets[0]
+        $archiveFile = Join-Path $dateTempDir ($asset.name -replace '\.aa$', '')
+        Log "  Downloading: $($asset.name)"
+        $tempPart = Join-Path $dateTempDir $asset.name
+        if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $tempPart -Token $token)) { return }
+        Move-Item -LiteralPath $tempPart -Destination $archiveFile -Force
+        
+      } else {
+        $baseName = ($assets[0].name -replace '\.(aa|ab|ac|ad|ae|af|ag|ah|ai|aj|ak|al|am|an|ao|ap)$', '')
+        $archiveFile = Join-Path $dateTempDir $baseName
+        Log "  Joining $($assets.Count) parts..."
+        
+        $outStream = [System.IO.File]::OpenWrite($archiveFile)
+        try {
+          foreach ($asset in ($assets | Sort-Object name)) {
+            $tempPart = Join-Path $dateTempDir $asset.name
+            if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $tempPart -Token $token)) { throw "Failed" }
+            
+            $inStream = [System.IO.File]::OpenRead($tempPart)
+            try { $inStream.CopyTo($outStream) } finally { $inStream.Close() }
+            Remove-Item -LiteralPath $tempPart -Force -ErrorAction SilentlyContinue
+          }
+        } finally { $outStream.Close() }
+      }
+      
+      $extracted = StreamExtractFilteredLocal -ArchiveFile $archiveFile -OutputDir $dateTempDir `
+                                              -XMin $xMin -XMax $xMax -YMin $yMin -YMax $yMax `
+                                              -OnlyX $missingFlat
+      Remove-Item -LiteralPath $archiveFile -Force -ErrorAction SilentlyContinue
+      
+      if ($extracted -eq 0) { return }
+      
+      $moved = 0
+      foreach ($x in $missingFlat) {
+        if ([string]::IsNullOrEmpty($x)) { continue }
+        
+        $srcXDir = Join-Path $dateTempDir ([string]$x)
+        if (Test-Path $srcXDir) {
+          $dstXDir = Join-Path $finalDir ([string]$x)
+          if (Test-Path $dstXDir) {
+            Get-ChildItem -Path $srcXDir -File -Filter "*.png" | ForEach-Object {
+              $dstFile = Join-Path $dstXDir $_.Name
+              if (-not (Test-Path $dstFile)) {
+                Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force
+                $moved++
+              }
+            }
+          } else {
+            Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force
+            $movedCount = (Get-ChildItem -Path $dstXDir -File -Filter "*.png" -Recurse).Count
+            $moved += $movedCount
+          }
+        }
+      }
+      
+      $finalCount = (Get-ChildItem -Path $finalDir -File -Filter "*.png" -Recurse).Count
+      LogSuccess "  ✓ Added $moved tiles | Total: $finalCount tiles"
+      
+    } finally {
+      if (Test-Path $dateTempDir) {
+        Remove-Item -LiteralPath $dateTempDir -Force -Recurse -ErrorAction SilentlyContinue
+      }
+    }
+  } -ThrottleLimit $ParallelJobs
+  
+} else {
+  Log "Processing sequentially..."
+  foreach ($dateInfo in $allDates) {
+    ProcessDateOptimized -Date $dateInfo.Date -MissingX $dateInfo.MissingX -ExistingX $dateInfo.ExistingX `
+                         -TilesRoot $TilesRoot -TempDir $TempDir `
+                         -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax `
+                         -Token $token -Owner $Owner -Repo $Repo
+  }
+}
+
+Write-Host "`n" -NoNewline
+LogSuccess "✓ All dates processed!"
+Write-Host ""

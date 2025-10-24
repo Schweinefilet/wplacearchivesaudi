@@ -1,5 +1,5 @@
 # Sync-Tiles.ps1
-# Unified script to ensure all dates have complete tile coverage (X=1243-1253, Y=875-904)
+# Space-optimized version - streams extraction, filters during extraction
 param(
   [string]$Owner       = "murolem",
   [string]$Repo        = "wplace-archives",
@@ -11,7 +11,7 @@ param(
   [int]$XMax = 1253,
   [int]$YMin = 875,
   [int]$YMax = 904,
-  [int]$ParallelJobs = 3
+  [int]$ParallelJobs = 2  # Reduced default to limit concurrent disk usage
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,16 +20,6 @@ Set-StrictMode -Version Latest
 function Log([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" }
 function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
 
-# Performance boost
-try {
-  $process = Get-Process -Id $PID
-  $process.PriorityClass = 'High'
-  [System.Threading.Thread]::CurrentThread.Priority = 'Highest'
-  Log "[PERF] Running at HIGH priority"
-} catch {
-  Log "[WARN] Could not set high priority: $($_.Exception.Message)"
-}
-
 # Network tuning
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 [Net.ServicePointManager]::DefaultConnectionLimit = 100
@@ -37,15 +27,15 @@ try {
 [Net.ServicePointManager]::UseNagleAlgorithm = $false
 $ProgressPreference = 'SilentlyContinue'
 
-# Check for tools
-$use7z = (Get-Command "7z" -ErrorAction SilentlyContinue) -ne $null
+# Check for tar (required for streaming)
 $hasTar = (Get-Command "tar" -ErrorAction SilentlyContinue) -ne $null
-if (-not $use7z -and -not $hasTar) {
-  Log "[ERROR] Neither 7z nor tar found. Please install tar or 7zip."
+if (-not $hasTar) {
+  Log "[ERROR] tar not found. This script requires tar for streaming extraction."
   exit 1
 }
-if ($use7z) { Log "[INFO] Using 7z for extraction" }
-else { Log "[INFO] Using tar for extraction" }
+Log "[INFO] Using tar for streaming extraction"
+
+Log "[INFO] Using tar for streaming extraction"
 
 # Check for GitHub token
 $token = $env:GITHUB_TOKEN
@@ -58,109 +48,6 @@ EnsureDir $TempDir
 Log "[REGION] Extracting x=$XMin-$XMax, y=$YMin-$YMax (Mecca/Medina/Taif)"
 
 # Functions
-function FilterXRange {
-  param([string]$Root, [int]$XMin, [int]$XMax)
-  if (-not (Test-Path $Root)) { return }
-  
-  $removed = 0
-  $removedDirs = 0
-  
-  # Remove any directories at any level that are numeric and outside our X range
-  Get-ChildItem -Path $Root -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -match '^\d+$'
-  } | ForEach-Object {
-    $xVal = [int]($_.Name)
-    if ($xVal -lt $XMin -or $xVal -gt $XMax) {
-      $fileCount = (Get-ChildItem -Path $_.FullName -File -Recurse -ErrorAction SilentlyContinue).Count
-      Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
-      $removed += $fileCount
-      $removedDirs++
-    }
-  }
-  
-  if ($removedDirs -gt 0) { 
-    Log "  [CLEANUP] Removed $removedDirs X directories ($removed files) outside range X=$XMin-$XMax" 
-  }
-}
-
-function FilterYRange {
-  param([string]$Root, [int]$YMin, [int]$YMax)
-  if (-not (Test-Path $Root)) { return }
-  $removed = 0
-  Get-ChildItem -Path $Root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-    $xDir = $_
-    if ($xDir.Name -match '^\d+$') {
-      Get-ChildItem -Path $xDir.FullName -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
-        if ($_.BaseName -match '^\d+$') {
-          $yVal = [int]($_.BaseName)
-          if ($yVal -lt $YMin -or $yVal -gt $YMax) {
-            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
-            $removed++
-          }
-        }
-      }
-      if (-not (Get-ChildItem -Path $xDir.FullName -File -ErrorAction SilentlyContinue)) {
-        Remove-Item -LiteralPath $xDir.FullName -Force -Recurse -ErrorAction SilentlyContinue
-      }
-    }
-  }
-  if ($removed -gt 0) { Log "  [FILTER] Removed $removed tiles outside Y=$YMin-$YMax" }
-}
-
-function FlattenToXY {
-  param([string]$Root, [int]$XMin, [int]$XMax)
-  if (-not (Test-Path $Root)) { return }
-  
-  # Recursively find all directories named as integers in the X range, regardless of depth
-  $foundXDirs = @{}
-  Get-ChildItem -Path $Root -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -match '^\d+$'
-  } | ForEach-Object {
-    $xVal = [int]($_.Name)
-    if ($xVal -ge $XMin -and $xVal -le $XMax) {
-      # Keep track of deepest instance of each X value (in case of duplicates)
-      if (-not $foundXDirs.ContainsKey($xVal) -or $_.FullName.Length -gt $foundXDirs[$xVal].Length) {
-        $foundXDirs[$xVal] = $_.FullName
-      }
-    }
-  }
-  
-  # Move each found X directory to the root level
-  foreach ($xVal in $foundXDirs.Keys) {
-    $srcXDir = $foundXDirs[$xVal]
-    $dstXDir = Join-Path $Root $xVal
-    
-    if ($srcXDir -eq $dstXDir) {
-      # Already at root level, skip
-      continue
-    }
-    
-    if (Test-Path $dstXDir) {
-      # Merge files
-      Get-ChildItem -Path $srcXDir -File -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
-        $dstFile = Join-Path $dstXDir $_.Name
-        if (-not (Test-Path $dstFile)) {
-          Move-Item -LiteralPath $_.FullName -Destination $dstFile -Force -ErrorAction SilentlyContinue
-        }
-      }
-      # Remove source after merge
-      Remove-Item -LiteralPath $srcXDir -Force -Recurse -ErrorAction SilentlyContinue
-    } else {
-      # Move entire directory
-      Move-Item -LiteralPath $srcXDir -Destination $dstXDir -Force -ErrorAction SilentlyContinue
-    }
-  }
-  
-  # Clean up any non-numeric directories at root level (prefixes that are now empty or irrelevant)
-  Get-ChildItem -Path $Root -Directory -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -notmatch '^\d+$'
-  } | ForEach-Object {
-    if (-not (Get-ChildItem -Path $_.FullName -Recurse -File -ErrorAction SilentlyContinue)) {
-      Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
-    }
-  }
-}
-
 function GetMissingXFolders {
   param([string]$DateDir, [int]$XMin, [int]$XMax)
   $missing = @()
@@ -196,6 +83,70 @@ function GetAllReleases {
   } while ($releases.Count -eq $perPage)
   
   return $allReleases
+}
+
+function DownloadAsset {
+  param([string]$Url, [string]$OutFile, [string]$Token)
+  $headers = @{ 'Accept' = 'application/octet-stream' }
+  if ($Token) { $headers['Authorization'] = "token $Token" }
+  
+  try {
+    Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers $headers -UseBasicParsing
+    return $true
+  } catch {
+    Log "  [ERROR] Download failed: $($_.Exception.Message)"
+    return $false
+  }
+}
+
+function StreamExtractFiltered {
+  param(
+    [string]$ArchiveFile,
+    [string]$OutputDir,
+    [int]$XMin,
+    [int]$XMax,
+    [int]$YMin,
+    [int]$YMax
+  )
+  
+  # Create filter file for tar
+  $filterFile = Join-Path $TempDir "filter_$(Get-Random).txt"
+  
+  try {
+    # List archive contents and filter to only what we need
+    Log "  [SCAN] Analyzing archive contents..."
+    $listing = & tar -tzf "$ArchiveFile" 2>$null
+    
+    # Filter to only tiles in our region
+    $wanted = $listing | Where-Object {
+      if ($_ -match '/(\d+)/(\d+)\.png$') {
+        $x = [int]$Matches[1]
+        $y = [int]$Matches[2]
+        return ($x -ge $XMin -and $x -le $XMax -and $y -ge $YMin -and $y -le $YMax)
+      }
+      return $false
+    }
+    
+    if ($wanted.Count -eq 0) {
+      Log "  [WARN] No matching tiles found in archive"
+      return 0
+    }
+    
+    # Write filter file
+    $wanted | Set-Content -LiteralPath $filterFile -Encoding UTF8
+    
+    Log "  [EXTRACT] Extracting $($wanted.Count) tiles (filtered)..."
+    
+    # Extract only filtered files, stripping path components
+    & tar -xzf "$ArchiveFile" -C "$OutputDir" --strip-components=1 -T "$filterFile" 2>$null
+    
+    return $wanted.Count
+    
+  } finally {
+    if (Test-Path $filterFile) {
+      Remove-Item -LiteralPath $filterFile -Force -ErrorAction SilentlyContinue
+    }
+  }
 }
 
 function DownloadAsset {
