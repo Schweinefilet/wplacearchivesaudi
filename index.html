@@ -174,33 +174,6 @@ let overlay=L.tileLayer(TRANSPARENT_1PX,{
   zoomOffset:isMobile ? 0 : 0
 }).addTo(map);
 
-// Disable image smoothing for crisp pixel-perfect rendering
-map.on('layeradd', function() {
-  const canvases = document.querySelectorAll('canvas');
-  canvases.forEach(canvas => {
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.webkitImageSmoothingEnabled = false;
-      ctx.mozImageSmoothingEnabled = false;
-      ctx.msImageSmoothingEnabled = false;
-    }
-  });
-});
-// Also run once on load
-setTimeout(() => {
-  const canvases = document.querySelectorAll('canvas');
-  canvases.forEach(canvas => {
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.webkitImageSmoothingEnabled = false;
-      ctx.mozImageSmoothingEnabled = false;
-      ctx.msImageSmoothingEnabled = false;
-    }
-  });
-}, 1000);
-
 let SNAPS=[{label:'loading…',dir:''}], currentDir='', currentRegion='—', snapIndex=0;
 
 const timeEl=$('time'), labelEl=$('label'), zEl=$('z'), hudMini=$('hudMini'), hudMiniText=$('hudMiniText'), btnPrev=$('btnPrev'), btnNext=$('btnNext');
