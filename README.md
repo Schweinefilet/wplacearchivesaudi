@@ -1,10 +1,7 @@
 # wplace-archive-saudi
-
-**Wplace Archive Viewer for Mecca, Medina & Taif** — Interactive timeline viewer for r/place activity in western Saudi Arabia.
-
 **Live site:** https://schweinefilet.github.io/wplacearchivesaudi/
 
-> Built to archive **Mecca, Medina, and Taif** activity on wplace.live for **islamwp**.  
+> Built to archive **Mecca, Medina, and everything in between** on wplace.live.
 > Archives sourced from **https://github.com/murolem/wplace-archives**.
 
 ---
