@@ -7,9 +7,12 @@
 <style>
   html,body,#map{height:100%;margin:0}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-  /* Fix for lines between tiles - overlap by 1.8px */
-  .leaflet-tile-container img{margin:-1px!important;max-width:none!important}
-  .leaflet-tile{margin:-1px!important;max-width:none!important}
+  /* Fix for lines between tiles - multiple approaches for cross-browser compatibility */
+  .leaflet-tile-container{transform:translate3d(0,0,0);-webkit-transform:translate3d(0,0,0)}
+  .leaflet-tile-container img{margin:-1px!important;max-width:none!important;outline:1px solid transparent;will-change:transform;image-rendering:auto;image-rendering:crisp-edges;image-rendering:-moz-crisp-edges;image-rendering:-webkit-optimize-contrast}
+  .leaflet-tile{margin:-1px!important;max-width:none!important;outline:1px solid transparent;image-rendering:auto;image-rendering:crisp-edges;image-rendering:-moz-crisp-edges;image-rendering:-webkit-optimize-contrast}
+  /* High quality image rendering */
+  canvas,img{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;-ms-interpolation-mode:nearest-neighbor}
   #toolbar{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:30000;display:flex;flex-direction:column;gap:10px}
   #topbar{position:absolute;left:70px;right:10px;top:10px;z-index:30000;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .sqbtn,.btn4k,.btnNav{border-radius:10px;border:1px solid #0006;background:rgba(20,24,31,.88);color:#e7e7e7;cursor:pointer;font-weight:700}
@@ -74,6 +77,15 @@
     .sqbtn,.btn4k,.btnNav{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
     button{-webkit-tap-highlight-color:transparent}
   }
+  /* Mobile-specific UI improvements */
+  body.mobile #frame{display:none!important}
+  body.mobile .btn4k{display:none!important}
+  body.mobile #dbgToggle{display:none!important}
+  body.mobile #topbar{flex-direction:column;gap:8px;left:5px;right:5px;top:5px}
+  body.mobile #hudwrap{width:100%;justify-content:center}
+  body.mobile #time{width:100%;max-width:100%}
+  body.mobile #toolbar{bottom:10px;flex-direction:row;width:calc(100% - 10px);left:5px;justify-content:center;gap:15px}
+  body.mobile .sqbtn{min-width:50px;height:50px;font-size:12px}
 </style>
 </head>
 <body>
@@ -123,6 +135,17 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+// Mobile detection
+(function() {
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
+                   window.innerWidth <= 768;
+  if (isMobile) {
+    document.body.classList.add('mobile');
+    DBG_ENABLED = false; // Disable debug on mobile
+  }
+})();
+
 const DBG=(()=>{const box=document.getElementById('debugBox');const log=(m)=>{const t=new Date().toLocaleTimeString();box.textContent=`[${t}] ${m}\n`+box.textContent;};window.addEventListener('error',e=>log('ERR '+(e.message||'')+' @ '+(e.filename||'')+':'+(e.lineno||0)));window.addEventListener('unhandledrejection',e=>log('REJ '+(e.reason?.message||String(e.reason))));return{log};})();
 document.getElementById('dbgToggle').addEventListener('click',()=>{document.body.classList.toggle('debug');DBG.log('debug toggled');});
 const $=id=>document.getElementById(id);
@@ -135,7 +158,48 @@ const TILE=256, OVERLAY_Z=11;
 
 // Start with a harmless 1px tile; swap URL after snaps load so we avoid 404 spam
 const TRANSPARENT_1PX='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
-let overlay=L.tileLayer(TRANSPARENT_1PX,{tileSize:256,minZoom:7,maxZoom:14,minNativeZoom:OVERLAY_Z,maxNativeZoom:OVERLAY_Z,keepBuffer:6,updateWhenZooming:true,updateWhenIdle:false,errorTileUrl:TRANSPARENT_1PX}).addTo(map);
+// Higher quality settings for mobile
+const isMobile = document.body.classList.contains('mobile');
+let overlay=L.tileLayer(TRANSPARENT_1PX,{
+  tileSize:256,
+  minZoom:7,
+  maxZoom:14,
+  minNativeZoom:OVERLAY_Z,
+  maxNativeZoom:OVERLAY_Z,
+  keepBuffer:isMobile ? 8 : 6,
+  updateWhenZooming:true,
+  updateWhenIdle:false,
+  errorTileUrl:TRANSPARENT_1PX,
+  detectRetina:true,
+  zoomOffset:isMobile ? 0 : 0
+}).addTo(map);
+
+// Disable image smoothing for crisp pixel-perfect rendering
+map.on('layeradd', function() {
+  const canvases = document.querySelectorAll('canvas');
+  canvases.forEach(canvas => {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.webkitImageSmoothingEnabled = false;
+      ctx.mozImageSmoothingEnabled = false;
+      ctx.msImageSmoothingEnabled = false;
+    }
+  });
+});
+// Also run once on load
+setTimeout(() => {
+  const canvases = document.querySelectorAll('canvas');
+  canvases.forEach(canvas => {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.webkitImageSmoothingEnabled = false;
+      ctx.mozImageSmoothingEnabled = false;
+      ctx.msImageSmoothingEnabled = false;
+    }
+  });
+}, 1000);
 
 let SNAPS=[{label:'loading…',dir:''}], currentDir='', currentRegion='—', snapIndex=0;
 
@@ -188,7 +252,24 @@ bindClick('save4kFrame',async()=>{const rect=(function(){const s=getComputedStyl
 (async()=>{try{const r=await fetch('snaps.json',{cache:'no-store'});if(r.ok)SNAPS=await r.json();}catch(_){}if(!Array.isArray(SNAPS)||SNAPS.length===0)SNAPS=[{label:'none',dir:''}];if(timeEl){timeEl.max=String(SNAPS.length-1);timeEl.value=String(SNAPS.length-1);}setSnap(SNAPS.length-1);map.on('zoom zoomend moveend',updateHUD);applyHUD();})();
 
 // Welcome modal
-(()=>{const modal=$('welcomeModal');const closeBtn=modal?.querySelector('.btnClose');const STORAGE_KEY='wplace_welcome_shown';const hasSeenWelcome=localStorage.getItem(STORAGE_KEY);if(!hasSeenWelcome&&modal){setTimeout(()=>modal.classList.add('show'),500);}if(closeBtn){closeBtn.onclick=()=>{modal.classList.remove('show');localStorage.setItem(STORAGE_KEY,'1');};}})();
+(()=>{const modal=$('welcomeModal');const closeBtn=modal?.querySelector('.btnClose');const STORAGE_KEY='wplace_welcome_shown';const hasSeenWelcome=localStorage.getItem(STORAGE_KEY);if(!hasSeenWelcome&&modal){setTimeout(()=>{
+  // Update welcome text for mobile
+  if(document.body.classList.contains('mobile')){
+    const welcomeBox=modal.querySelector('#welcomeBox');
+    if(welcomeBox){
+      const ul=welcomeBox.querySelector('ul');
+      if(ul){
+        ul.innerHTML=`
+          <li><strong>Timeline:</strong> Use the slider or arrow buttons to navigate dates</li>
+          <li><strong>Quick jumps:</strong> Tap <strong>Mecca</strong> or <strong>Medina</strong> buttons to center the map</li>
+          <li><strong>Pinch to zoom:</strong> Use two fingers to zoom in/out on the map</li>
+          <li><strong>Pan:</strong> Drag with one finger to move around the map</li>
+        `;
+      }
+    }
+  }
+  modal.classList.add('show');
+},500);}if(closeBtn){closeBtn.onclick=()=>{modal.classList.remove('show');localStorage.setItem(STORAGE_KEY,'1');};}})();
 
 DBG.log('ready');
 </script>
