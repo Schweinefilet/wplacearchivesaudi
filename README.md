@@ -38,25 +38,6 @@
 
 ---
 
-## Directory layout
-
-\`\`\`
-/ (repo root)
-├─ index.html
-├─ snaps.json
-├─ tiles/
-│  ├─ tiles_2025-08-22/
-│  │  └─ 1243/875.png … 1253/904.png
-│  └─ tiles_YYYY-MM-DD/…
-├─ Get-LatestWplaceReleases.ps1
-├─ Make-JoinedTars.ps1
-├─ Publish-Site.ps1
-├─ Sync-Tiles.ps1
-└─ .github/workflows/ (optional)
-\`\`\`
-
----
-
 ## Quick Start (Windows)
 
 ### 1. Set up GitHub token (optional, for higher rate limits)
