@@ -125,22 +125,31 @@
     .modal-dialog ul{ margin:0 0 1.25rem 1rem; padding:0 0 0 1.1rem; display:grid; gap:0.4rem; color:var(--timeline-label); }
     .modal-dialog li{ line-height:1.45; }
 
-  .background-boxes{ position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; --cell-width:56px; --cell-height:32px; }
+  .background-boxes{ position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; --cell-width:120px; --cell-height:64px; }
   .background-boxes::after{ content:""; position:absolute; inset:0; background:radial-gradient(circle at center, rgba(17,24,39,0.25) 0%, rgba(17,24,39,0.82) 48%, rgba(17,24,39,0.95) 100%); mix-blend-mode:multiply; pointer-events:none; }
-  .background-boxes-inner{ position:absolute; top:42%; left:65%; transform:translate(-60%,-40%) skewX(-46deg) skewY(12deg) scale(0.82); display:flex; flex-direction:column; gap:0; pointer-events:auto; }
-  .background-boxes.is-mobile .background-boxes-inner{ top:48%; left:60%; transform:translate(-58%,-42%) skewX(-44deg) skewY(10deg) scale(0.72); }
+  .background-boxes-inner{ position:absolute; top:45%; left:62%; transform:translate(-62%, -45%) skewX(-46deg) skewY(12deg) scale(1.05); display:flex; flex-direction:column; gap:0; pointer-events:auto; }
+  .background-boxes.is-mobile .background-boxes-inner{ top:50%; left:58%; transform:translate(-58%, -45%) skewX(-44deg) skewY(10deg) scale(0.9); }
   .background-boxes-row{ display:flex; gap:0; }
-  .background-boxes-cell{ position:relative; width:var(--cell-width); height:var(--cell-height); border-top:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-right:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-left:1px solid rgba(148,163,184,0.18); background:linear-gradient(140deg, var(--box-color, rgba(99,102,241,0.32)), rgba(255,255,255,0.16)); box-shadow:0 4px 18px var(--box-shadow-color, rgba(99,102,241,0.38)); opacity:0.34; transform-origin:center; animation:boxPulse var(--duration,8s) ease-in-out infinite; animation-delay:var(--delay,0s); transition:opacity 0.22s ease, transform 0.25s ease, box-shadow 0.28s ease, background 0.32s ease, border-color 0.28s ease; pointer-events:auto; backdrop-filter:blur(2px); }
+  .background-boxes-cell{ position:relative; width:var(--cell-width); height:var(--cell-height); border-top:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-right:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-left:1px solid rgba(148,163,184,0.18); background:linear-gradient(140deg, var(--box-color, rgba(99,102,241,0.32)), rgba(255,255,255,0.16)); box-shadow:0 4px 18px var(--box-shadow-color, rgba(99,102,241,0.38)); opacity:0.34; transform-origin:center; animation:boxPulse var(--duration,9s) ease-in-out infinite; animation-delay:var(--delay,0s); transition:opacity 0.22s ease, transform 0.25s ease, box-shadow 0.28s ease, background 0.32s ease, border-color 0.28s ease; pointer-events:auto; backdrop-filter:blur(2px); }
   .background-boxes-cell::before{ content:""; position:absolute; inset:-12px -16px auto auto; width:40px; height:24px; background:rgba(148,163,184,0.22); clip-path:polygon(50% 10%, 55% 45%, 90% 50%, 55% 55%, 50% 90%, 45% 55%, 10% 50%, 45% 45%); opacity:0; transition:opacity 0.3s ease; }
   .background-boxes-cell.has-plus::before{ opacity:0.3; }
-  .background-boxes-cell:hover{ opacity:1; transform:scale3d(1.16,1.16,1); background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.78)), rgba(255,255,255,0.42)); border-color:var(--box-border-strong, rgba(129,140,248,0.85)); box-shadow:0 32px 68px var(--box-shadow-strong, rgba(99,102,241,0.85)); filter:drop-shadow(0 18px 44px rgba(15,23,42,0.52)); }
+  .background-boxes-cell:hover{ opacity:1; transform:scale3d(1.12,1.12,1); background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.78)), rgba(255,255,255,0.42)); border-color:var(--box-border-strong, rgba(129,140,248,0.85)); box-shadow:0 28px 56px var(--box-shadow-strong, rgba(99,102,241,0.72)); filter:drop-shadow(0 16px 38px rgba(15,23,42,0.48)); }
   .background-boxes-plus{ pointer-events:none; position:absolute; top:-12px; left:-18px; width:32px; height:32px; color:var(--plus-color, rgba(148,163,184,0.35)); stroke-width:1px; transition:color 0.3s ease; }
   .background-boxes-cell:hover .background-boxes-plus{ color:var(--plus-hover-color, rgba(129,140,248,0.9)); }
   [data-theme="light"] .background-boxes-cell{ background:linear-gradient(140deg, var(--box-color, rgba(99,102,241,0.25)), rgba(255,255,255,0.28)); border-color:rgba(148,163,184,0.28); box-shadow:0 4px 16px rgba(99,102,241,0.32); }
-  [data-theme="light"] .background-boxes-cell:hover{ background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.82)), rgba(255,255,255,0.58)); box-shadow:0 36px 68px var(--box-shadow-strong, rgba(129,140,248,0.8)); border-color:var(--box-border-strong, rgba(129,140,248,0.9)); filter:drop-shadow(0 18px 38px rgba(15,23,42,0.28)); }
+  [data-theme="light"] .background-boxes-cell:hover{ background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.82)), rgba(255,255,255,0.58)); box-shadow:0 32px 58px var(--box-shadow-strong, rgba(129,140,248,0.72)); border-color:var(--box-border-strong, rgba(129,140,248,0.9)); filter:drop-shadow(0 16px 32px rgba(15,23,42,0.24)); }
   [data-theme="light"] .background-boxes-plus{ color:var(--plus-color, rgba(79,70,229,0.35)); }
   [data-theme="light"] .background-boxes-cell:hover .background-boxes-plus,
   [data-theme="light"] .background-boxes-cell.is-hover .background-boxes-plus{ color:var(--plus-hover-color, rgba(99,102,241,0.95)); }
+
+  .background-boxes-cell.color-0{ --box-color:#93c5fd44; --box-color-strong:#93c5fdff; --box-shadow-color:#93c5fdaa; --box-shadow-strong:#93c5fdff; --box-border-color:#93c5fd55; --box-border-strong:#93c5fddd; --plus-color:#93c5fd88; --plus-hover-color:#93c5fdff; }
+  .background-boxes-cell.color-1{ --box-color:#f9a8d444; --box-color-strong:#f9a8d4ff; --box-shadow-color:#f9a8d4aa; --box-shadow-strong:#f9a8d4ff; --box-border-color:#f9a8d455; --box-border-strong:#f9a8d4dd; --plus-color:#f9a8d488; --plus-hover-color:#f9a8d4ff; }
+  .background-boxes-cell.color-2{ --box-color:#86efac44; --box-color-strong:#86efacff; --box-shadow-color:#86efacaa; --box-shadow-strong:#86efacff; --box-border-color:#86efac55; --box-border-strong:#86efacdd; --plus-color:#86efac88; --plus-hover-color:#86efacff; }
+  .background-boxes-cell.color-3{ --box-color:#fde04744; --box-color-strong:#fde047ff; --box-shadow-color:#fde047aa; --box-shadow-strong:#fde047ff; --box-border-color:#fde04755; --box-border-strong:#fde047dd; --plus-color:#fde04788; --plus-hover-color:#fde047ff; }
+  .background-boxes-cell.color-4{ --box-color:#fca5a544; --box-color-strong:#fca5a5ff; --box-shadow-color:#fca5a5aa; --box-shadow-strong:#fca5a5ff; --box-border-color:#fca5a555; --box-border-strong:#fca5a5dd; --plus-color:#fca5a588; --plus-hover-color:#fca5a5ff; }
+  .background-boxes-cell.color-5{ --box-color:#d8b4fe44; --box-color-strong:#d8b4feff; --box-shadow-color:#d8b4feaa; --box-shadow-strong:#d8b4feff; --box-border-color:#d8b4fe55; --box-border-strong:#d8b4fedd; --plus-color:#d8b4fe88; --plus-hover-color:#d8b4feff; }
+  .background-boxes-cell.color-6{ --box-color:#a5b4fc44; --box-color-strong:#a5b4fcff; --box-shadow-color:#a5b4fcaa; --box-shadow-strong:#a5b4fcff; --box-border-color:#a5b4fc55; --box-border-strong:#a5b4fcdd; --plus-color:#a5b4fc88; --plus-hover-color:#a5b4fcff; }
+  .background-boxes-cell.color-7{ --box-color:#c4b5fd44; --box-color-strong:#c4b5fdff; --box-shadow-color:#c4b5fdaa; --box-shadow-strong:#c4b5fdff; --box-border-color:#c4b5fd55; --box-border-strong:#c4b5fddd; --plus-color:#c4b5fd88; --plus-hover-color:#c4b5fdff; }
 
     @keyframes boxPulse{
       0%,100%{ opacity:0.28; transform:scale3d(1,1,1); }
@@ -153,6 +162,10 @@
     .frame-badge{ position:absolute; top:10px; left:10px; background:var(--panel-bg); border:1px solid var(--panel-border); color:var(--app-fg); border-radius:0.75rem; padding:0.35rem 0.7rem; font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; pointer-events:none; }
 
     @media (max-width:960px){ .control-stack{ top:.75rem; left:.75rem } .chip{ padding:.45rem .75rem } }
+
+    @media (prefers-reduced-motion: reduce){
+      .background-boxes-cell{ animation:none; }
+    }
   </style>
 </head>
 <body data-theme="dark">
@@ -226,7 +239,7 @@
       </ul>
       <p>You can close this guide with the × button or by clicking the shaded backdrop.</p>
       <div class="modal-actions">
-        <a href="README.md" target="_blank" rel="noopener">Project README</a>
+        <a href="https://github.com/Schweinefilet/wplacearchivesaudi" target="_blank" rel="noopener noreferrer">GitHub Repository (please star the repository :D)</a>
       </div>
     </div>
   </div>
@@ -267,43 +280,31 @@
       function ensureBackgroundBoxes(){
         if(!elements.aboutModal) return;
         if(elements.aboutModal.querySelector('.background-boxes')) return;
-        const colors = ['#93c5fd','#f9a8d4','#86efac','#fde047','#fca5a5','#d8b4fe','#a5b4fc','#c4b5fd'];
         const wrapper = document.createElement('div');
         wrapper.className = 'background-boxes';
         wrapper.setAttribute('aria-hidden', 'true');
-        const isCompact = window.innerWidth <= 768;
+  const isCompact = window.innerWidth <= 768;
         wrapper.classList.toggle('is-mobile', isCompact);
-        const cellWidth = isCompact ? 44 : 56;
-        const cellHeight = isCompact ? 26 : 32;
+  const cellWidth = isCompact ? 96 : 128;
+  const cellHeight = isCompact ? 56 : 72;
         wrapper.style.setProperty('--cell-width', cellWidth + 'px');
         wrapper.style.setProperty('--cell-height', cellHeight + 'px');
         const inner = document.createElement('div');
         inner.className = 'background-boxes-inner';
-        const rows = isCompact ? 28 : 42;
-        const cols = isCompact ? 44 : 62;
+  const rows = isCompact ? 18 : 28;
+  const cols = isCompact ? 24 : 34;
+        const colorVariants = ['color-0','color-1','color-2','color-3','color-4','color-5','color-6','color-7'];
+        const fragment = document.createDocumentFragment();
         for(let i=0; i<rows; i++){
           const row = document.createElement('div');
           row.className = 'background-boxes-row';
           for(let j=0; j<cols; j++){
             const cell = document.createElement('div');
-            cell.className = 'background-boxes-cell';
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const tinted = `${color}66`;
-            const strong = `${color}ff`;
-            const glow = `${color}aa`;
-            const border = `${color}cc`;
-            const hoverGlow = `${color}ff`;
-            cell.style.setProperty('--box-color', tinted);
-            cell.style.setProperty('--box-color-strong', strong);
-            cell.style.setProperty('--box-shadow-color', glow);
-            cell.style.setProperty('--box-shadow-strong', hoverGlow);
-            cell.style.setProperty('--box-border-color', `${color}40`);
-            cell.style.setProperty('--box-border-strong', border);
-            cell.style.setProperty('--plus-color', `${color}88`);
-            cell.style.setProperty('--plus-hover-color', `${color}ff`);
-            cell.style.setProperty('--delay', `${(Math.random() * -6).toFixed(2)}s`);
-            cell.style.setProperty('--duration', `${(6 + Math.random() * 4).toFixed(2)}s`);
-            if((i % 2 === 0) && (j % 3 === 0)){
+            const variant = colorVariants[Math.floor(Math.random() * colorVariants.length)];
+            cell.className = `background-boxes-cell ${variant}`;
+            cell.style.setProperty('--delay', `${(Math.random() * -5).toFixed(2)}s`);
+            cell.style.setProperty('--duration', `${(7 + Math.random() * 3).toFixed(2)}s`);
+            if(((i + j) % 5) === 0){
               cell.classList.add('has-plus');
               const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
               svg.setAttribute('viewBox','0 0 24 24');
@@ -320,8 +321,9 @@
             }
             row.appendChild(cell);
           }
-          inner.appendChild(row);
+          fragment.appendChild(row);
         }
+        inner.appendChild(fragment);
         wrapper.appendChild(inner);
         elements.aboutModal.appendChild(wrapper);
       }
