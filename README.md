@@ -1,10 +1,7 @@
 # wplace-archive-saudi
-
-**Wplace Archive Viewer for Mecca, Medina & Taif** — Interactive timeline viewer for r/place activity in western Saudi Arabia.
-
 **Live site:** https://schweinefilet.github.io/wplacearchivesaudi/
 
-> Built to archive **Mecca, Medina, and Taif** activity on wplace.live for **islamwp**.  
+> Built to archive **Mecca, Medina, and everything in between** on wplace.live.
 > Archives sourced from **https://github.com/murolem/wplace-archives**.
 
 ---
@@ -35,25 +32,6 @@
 - **X range:** 1243-1253 (Mecca → Taif)
 - **Y range:** 875-904
 - **Coordinates:** Covers Mecca (21.42°N, 39.83°E), Medina (24.47°N, 39.61°E), and Taif (21.27°N, 40.42°E)
-
----
-
-## Directory layout
-
-\`\`\`
-/ (repo root)
-├─ index.html
-├─ snaps.json
-├─ tiles/
-│  ├─ tiles_2025-08-22/
-│  │  └─ 1243/875.png … 1253/904.png
-│  └─ tiles_YYYY-MM-DD/…
-├─ Get-LatestWplaceReleases.ps1
-├─ Make-JoinedTars.ps1
-├─ Publish-Site.ps1
-├─ Sync-Tiles.ps1
-└─ .github/workflows/ (optional)
-\`\`\`
 
 ---
 

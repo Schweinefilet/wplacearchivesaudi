@@ -1,196 +1,502 @@
-﻿<!doctype html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>wplace viewer — site build (dynamic snaps)</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-  html,body,#map{height:100%;margin:0}
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-  /* Fix for lines between tiles - overlap by 2px */
-  .leaflet-tile-container img{margin:-1px!important;max-width:none!important}
-  .leaflet-tile{margin:-1px!important;max-width:none!important}
-  #toolbar{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:30000;display:flex;flex-direction:column;gap:10px}
-  #topbar{position:absolute;left:70px;right:10px;top:10px;z-index:30000;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .sqbtn,.btn4k,.btnNav{border-radius:10px;border:1px solid #0006;background:rgba(20,24,31,.88);color:#e7e7e7;cursor:pointer;font-weight:700}
-  .sqbtn{min-width:48px;height:48px;display:grid;place-items:center}
-  .btn4k{min-width:80px;height:38px}
-  .btnNav{min-width:46px;height:38px}
-  .btnNav:disabled{opacity:.45;cursor:not-allowed}
-  #hudwrap{display:flex;gap:10px;align-items:center;background:rgba(20,24,31,.55);padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px)}
-  #time{width:280px;height:14px;-webkit-appearance:none;appearance:none;background:transparent}
-  #time::-webkit-slider-runnable-track{height:3px;background:#cfcfcf;border-radius:2px}
-  #time::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#111;border:2px solid #fff;margin-top:-6px}
-  #time::-moz-range-track{height:3px;background:#cfcfcf;border-radius:2px}
-  #time::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#111;border:2px solid #fff}
-  .pill{background:rgba(20,24,31,.88);color:#e7e7e7;padding:4px 10px;border-radius:999px;font-weight:700}
-  #hudMini{position:absolute;left:12px;top:12px;z-index:31000;display:none;align-items:center;gap:8px;background:rgba(20,24,31,.80);color:#e7e7e7;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.08);font-weight:700;letter-spacing:.2px;backdrop-filter:blur(6px)}
-  body.minimal #hudMini{display:flex} body.minimal #topbar,body.minimal #toolbar,body.minimal .leaflet-control-container{display:none!important}
-  #dbgToggle{position:absolute;left:10px;bottom:10px;z-index:32000;width:42px;height:28px;border-radius:6px;border:1px solid #0006;background:rgba(20,24,31,.88);color:#e7e7e7;cursor:pointer;font-weight:700}
-  #debugBox{position:absolute;left:60px;bottom:10px;z-index:32000;display:none;max-width:60ch;background:#0b0b0b;color:#0f0;padding:8px 10px;border-radius:8px;font:12px/1.35 ui-monospace,Consolas,monospace;white-space:pre-wrap;border:1px solid #1f1f1f}
-  body.debug #debugBox{display:block} body.minimal #dbgToggle,body.minimal #debugBox{display:none!important}
-  #frame{position:absolute;z-index:29000;border:2px solid #fff;border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.25) inset,0 0 0 1px rgba(0,0,0,.35);cursor:move;user-select:none;touch-action:none}
-  #frame.hidden{display:none}
-  #frame .badge{position:absolute;left:8px;top:8px;background:rgba(20,24,31,.85);color:#e7e7e7;padding:2px 8px;border-radius:8px;font:600 12px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-  #welcomeModal{position:fixed;inset:0;z-index:40000;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
-  #welcomeModal.show{display:flex}
-  #welcomeBox{background:#fff;color:#000;max-width:500px;width:90%;border-radius:16px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.4);animation:slideIn .3s ease}
-  @keyframes slideIn{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
-  #welcomeBox h2{margin:0 0 16px;font-size:28px;color:#14181f}
-  #welcomeBox p{margin:12px 0;line-height:1.6;color:#2a2a2a}
-  #welcomeBox ul{margin:12px 0;padding-left:24px;line-height:1.8;color:#2a2a2a}
-  #welcomeBox ul li{margin:6px 0}
-  #welcomeBox strong{color:#000}
-  #welcomeBox .btnClose{display:block;width:100%;margin-top:24px;padding:12px;background:#14181f;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;transition:background .2s}
-  #welcomeBox .btnClose:hover{background:#2a3040}
-  /* Mobile optimizations */
-  @media (max-width: 768px) {
-    #toolbar{left:5px;gap:6px;top:auto;bottom:80px;transform:none}
-    .sqbtn{min-width:44px;height:44px;font-size:11px}
-    #topbar{left:5px;right:5px;top:5px;gap:6px}
-    #hudwrap{padding:6px 8px;flex-wrap:wrap}
-    #time{width:100%;min-width:200px}
-    .btn4k{min-width:70px;height:36px;padding:0 8px;font-size:12px}
-    .btnNav{min-width:40px;height:36px}
-    .pill{font-size:12px;padding:3px 8px}
-    #dbgToggle{left:5px;bottom:5px}
-    #debugBox{left:5px;right:5px;bottom:40px;max-width:none;font-size:10px}
-    #frame .badge{font-size:10px;padding:2px 6px}
-    #welcomeBox{padding:24px;max-width:95%}
-    #welcomeBox h2{font-size:22px}
-    #welcomeBox p,#welcomeBox ul{font-size:14px}
-    body.minimal #hudMini{font-size:12px;padding:6px 8px}
-  }
-  @media (max-width: 480px) {
-    .sqbtn{min-width:40px;height:40px;font-size:10px}
-    #hudwrap{gap:4px}
-    .btn4k{min-width:60px;height:32px;font-size:11px}
-    .btnNav{min-width:36px;height:32px}
-    #welcomeBox{padding:20px}
-    #welcomeBox h2{font-size:20px}
-  }
-  /* Touch improvements */
-  @media (hover: none) and (pointer: coarse) {
-    .sqbtn,.btn4k,.btnNav{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-    button{-webkit-tap-highlight-color:transparent}
-  }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WPlace Archive Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      color-scheme: dark;
+      --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --app-bg: #111827;
+      --app-fg: #f9fafb;
+      --panel-bg: rgba(17,24,39,0.78);
+      --panel-border: rgba(148,163,184,0.25);
+      --panel-hover: rgba(30,41,59,0.9);
+      --accent: #6366f1;
+      --accent-soft: rgba(99,102,241,0.18);
+      --shadow: 0 10px 40px rgba(15,23,42,0.35);
+      --timeline-track: rgba(148,163,184,0.35);
+      --timeline-item: rgba(148,163,184,0.45);
+      --timeline-item-active: #ffffff;
+      --timeline-label: rgba(226,232,240,0.75);
+  --modal-bg: rgba(17,24,39,0.86);
+      --modal-surface: rgba(15,23,42,0.95);
+      --scrollbar: rgba(148,163,184,0.25);
+    }
+
+    [data-theme="light"] {
+      color-scheme: light;
+      --app-bg: #f8fafc;
+      --app-fg: #1e293b;
+      --panel-bg: rgba(255,255,255,0.92);
+      --panel-border: rgba(100,116,139,0.2);
+      --panel-hover: rgba(226,232,240,0.95);
+      --accent: #4338ca;
+      --accent-soft: rgba(79,70,229,0.15);
+      --shadow: 0 10px 30px rgba(15,23,42,0.15);
+      --timeline-track: rgba(148,163,184,0.35);
+      --timeline-item: rgba(148,163,184,0.55);
+      --timeline-item-active: #1e293b;
+      --timeline-label: rgba(30,41,59,0.75);
+  --modal-bg: rgba(15,23,42,0.62);
+      --modal-surface: rgba(255,255,255,0.95);
+      --scrollbar: rgba(148,163,184,0.4);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: var(--font-sans); background: var(--app-bg); color: var(--app-fg);
+      position: relative; overflow: hidden;
+    }
+
+    button { font-family: inherit; font-size: 0.95rem; border: none; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .hidden { display: none !important; }
+
+    #map { position: absolute; inset: 0; z-index: 0; }
+
+    /* Leaflet tweaks to avoid seams and keep tiles sharp */
+    .leaflet-container { font: inherit; }
+    .leaflet-control-container { display: none; }
+    .leaflet-tile-container { transform: translate3d(0,0,0); }
+    .leaflet-tile, .leaflet-tile-container img {
+      margin: -1px!important;
+      max-width: none!important;
+      backface-visibility: hidden;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-optimize-contrast;
+    }
+
+    body.hud-hidden .control-stack,
+    body.hud-hidden .control-stack.right,
+    body.hud-hidden .bottom-bar,
+    body.hud-hidden .frame-badge {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(10px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    body.hud-hidden #frame { display: none; }
+
+    .control-stack,
+    .control-stack.right,
+    .bottom-bar,
+    .frame-badge {
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    /* Minimal UI styling inspired by reference site */
+  .control-stack { position: absolute; top: 1rem; left: 1rem; z-index: 20; display:flex; flex-direction:column; gap:0.75rem; pointer-events: none; }
+    .control-row { display:flex; gap:0.5rem; align-items:center; pointer-events:auto; }
+    .chip { appearance:none; border:1px solid var(--panel-border); background:var(--panel-bg); color:var(--app-fg); border-radius:999px; padding:0.5rem 0.9rem; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.25); transition:background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease; }
+  .chip-ghost { background:var(--panel-bg); box-shadow:0 4px 16px rgba(0,0,0,0.2); }
+    .chip:hover, .chip-ghost:hover { background:var(--panel-hover); transform:translateY(-1px); }
+    .chip:disabled { cursor:not-allowed; opacity:0.45; transform:none; box-shadow:none; }
+    .meta-pill { display:inline-flex; gap:0.5rem; align-items:center; padding:0.5rem 0.9rem; border-radius:999px; background:var(--panel-bg); border:1px solid var(--panel-border); font-weight:600; box-shadow:0 4px 18px rgba(0,0,0,0.2); }
+
+  .menu { position:relative; }
+  .menu-panel { position:absolute; right:0; top:100%; margin-top:0.5rem; padding:0.75rem; border-radius:1rem; background:var(--panel-bg); border:1px solid var(--panel-border); box-shadow:var(--shadow); display:flex; flex-direction:column; gap:0.5rem; min-width:12rem; backdrop-filter:blur(14px); }
+    .menu-panel button { background:var(--panel-hover); border:1px solid transparent; color:var(--app-fg); border-radius:0.75rem; padding:0.6rem 0.9rem; font-weight:600; cursor:pointer; transition:background 0.18s ease, border-color 0.18s ease; }
+    .menu-panel button:hover, .menu-panel button:focus-visible { background:var(--accent-soft); border-color:var(--accent); }
+
+  .bottom-bar { position:absolute; left:0; right:0; bottom:0; padding:1.3rem 2.5rem 1.5rem; z-index:15; pointer-events:auto; display:flex; flex-direction:column; gap:0.75rem; }
+  .bottom-bar::before { content:""; position:absolute; inset:0; background: linear-gradient(0deg, rgba(17,24,39,0.92) 10%, rgba(17,24,39,0.6) 40%, transparent 100%); z-index:-1; pointer-events:none; }
+  .slider-label { font-size:0.85rem; font-weight:600; color:var(--timeline-label); text-transform:none; letter-spacing:0; display:inline-flex; align-items:center; gap:0.35rem; padding:0.35rem 0.75rem; border-radius:0.8rem; background:var(--panel-bg); border:1px solid var(--panel-border); box-shadow:0 5px 16px rgba(0,0,0,0.3); width:fit-content; }
+  .slider-controls { display:flex; align-items:center; gap:0.75rem; padding:0.8rem 0.95rem; border-radius:1.25rem; background:var(--panel-bg); border:1px solid var(--panel-border); box-shadow:0 6px 24px rgba(0,0,0,0.35); backdrop-filter:blur(12px); width:min(560px, calc(100vw - 4rem)); }
+  .slider-controls .chip { padding:0.4rem 0.75rem; width:2.5rem; display:grid; place-items:center; }
+  #timelinePrev { transform:rotate(180deg); }
+  .slider-wrap { display:flex; align-items:center; gap:1rem; position:relative; z-index:1; flex:1; }
+  #timelineSlider { width:100%; appearance:none; height:4px; border-radius:999px; background:var(--timeline-track); cursor:pointer; }
+  #timelineSlider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:var(--accent); border:none; box-shadow:0 0 0 4px var(--accent-soft); }
+  #timelineSlider::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--accent); border:none; box-shadow:0 0 0 4px var(--accent-soft); }
+  #timelineSlider:disabled { cursor:not-allowed; opacity:0.4; }
+
+  .modal{ position:fixed; inset:0; background:var(--modal-bg); z-index:50; display:flex; align-items:center; justify-content:center; padding:2rem; overflow:hidden; }
+  .modal-dialog{ position:relative; z-index:1; background:var(--modal-surface); padding:1.75rem; border-radius:12px; border:1px solid var(--panel-border); max-width:520px; width:100%; box-shadow:var(--shadow); }
+    .modal-close{ position:absolute; top:1rem; right:1rem; width:2.25rem; height:2.25rem; border-radius:999px; background:var(--panel-hover); color:var(--app-fg); font-size:1.5rem; line-height:1; display:grid; place-items:center; cursor:pointer; transition:background 0.18s ease, transform 0.18s ease; }
+    .modal-close:hover{ background:var(--accent-soft); transform:scale(1.05); }
+    .modal-dialog ul{ margin:0 0 1.25rem 1rem; padding:0 0 0 1.1rem; display:grid; gap:0.4rem; color:var(--timeline-label); }
+    .modal-dialog li{ line-height:1.45; }
+
+  .background-boxes{ position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; --cell-width:120px; --cell-height:64px; }
+  .background-boxes::after{ content:""; position:absolute; inset:0; background:radial-gradient(circle at center, rgba(17,24,39,0.25) 0%, rgba(17,24,39,0.82) 48%, rgba(17,24,39,0.95) 100%); mix-blend-mode:multiply; pointer-events:none; }
+  .background-boxes-inner{ position:absolute; top:45%; left:62%; transform:translate(-62%, -45%) skewX(-46deg) skewY(12deg) scale(1.05); display:flex; flex-direction:column; gap:0; pointer-events:auto; }
+  .background-boxes.is-mobile .background-boxes-inner{ top:50%; left:58%; transform:translate(-58%, -45%) skewX(-44deg) skewY(10deg) scale(0.9); }
+  .background-boxes-row{ display:flex; gap:0; }
+  .background-boxes-cell{ position:relative; width:var(--cell-width); height:var(--cell-height); border-top:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-right:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-left:1px solid rgba(148,163,184,0.18); background:linear-gradient(140deg, var(--box-color, rgba(99,102,241,0.32)), rgba(255,255,255,0.16)); box-shadow:0 4px 18px var(--box-shadow-color, rgba(99,102,241,0.38)); opacity:0.34; transform-origin:center; animation:boxPulse var(--duration,9s) ease-in-out infinite; animation-delay:var(--delay,0s); transition:opacity 0.22s ease, transform 0.25s ease, box-shadow 0.28s ease, background 0.32s ease, border-color 0.28s ease; pointer-events:auto; backdrop-filter:blur(2px); }
+  .background-boxes-cell::before{ content:""; position:absolute; inset:-12px -16px auto auto; width:40px; height:24px; background:rgba(148,163,184,0.22); clip-path:polygon(50% 10%, 55% 45%, 90% 50%, 55% 55%, 50% 90%, 45% 55%, 10% 50%, 45% 45%); opacity:0; transition:opacity 0.3s ease; }
+  .background-boxes-cell.has-plus::before{ opacity:0.3; }
+  .background-boxes-cell:hover{ opacity:1; transform:scale3d(1.12,1.12,1); background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.78)), rgba(255,255,255,0.42)); border-color:var(--box-border-strong, rgba(129,140,248,0.85)); box-shadow:0 28px 56px var(--box-shadow-strong, rgba(99,102,241,0.72)); filter:drop-shadow(0 16px 38px rgba(15,23,42,0.48)); }
+  .background-boxes-plus{ pointer-events:none; position:absolute; top:-12px; left:-18px; width:32px; height:32px; color:var(--plus-color, rgba(148,163,184,0.35)); stroke-width:1px; transition:color 0.3s ease; }
+  .background-boxes-cell:hover .background-boxes-plus{ color:var(--plus-hover-color, rgba(129,140,248,0.9)); }
+  [data-theme="light"] .background-boxes-cell{ background:linear-gradient(140deg, var(--box-color, rgba(99,102,241,0.25)), rgba(255,255,255,0.28)); border-color:rgba(148,163,184,0.28); box-shadow:0 4px 16px rgba(99,102,241,0.32); }
+  [data-theme="light"] .background-boxes-cell:hover{ background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.82)), rgba(255,255,255,0.58)); box-shadow:0 32px 58px var(--box-shadow-strong, rgba(129,140,248,0.72)); border-color:var(--box-border-strong, rgba(129,140,248,0.9)); filter:drop-shadow(0 16px 32px rgba(15,23,42,0.24)); }
+  [data-theme="light"] .background-boxes-plus{ color:var(--plus-color, rgba(79,70,229,0.35)); }
+  [data-theme="light"] .background-boxes-cell:hover .background-boxes-plus,
+  [data-theme="light"] .background-boxes-cell.is-hover .background-boxes-plus{ color:var(--plus-hover-color, rgba(99,102,241,0.95)); }
+
+  .background-boxes-cell.color-0{ --box-color:#93c5fd44; --box-color-strong:#93c5fdff; --box-shadow-color:#93c5fdaa; --box-shadow-strong:#93c5fdff; --box-border-color:#93c5fd55; --box-border-strong:#93c5fddd; --plus-color:#93c5fd88; --plus-hover-color:#93c5fdff; }
+  .background-boxes-cell.color-1{ --box-color:#f9a8d444; --box-color-strong:#f9a8d4ff; --box-shadow-color:#f9a8d4aa; --box-shadow-strong:#f9a8d4ff; --box-border-color:#f9a8d455; --box-border-strong:#f9a8d4dd; --plus-color:#f9a8d488; --plus-hover-color:#f9a8d4ff; }
+  .background-boxes-cell.color-2{ --box-color:#86efac44; --box-color-strong:#86efacff; --box-shadow-color:#86efacaa; --box-shadow-strong:#86efacff; --box-border-color:#86efac55; --box-border-strong:#86efacdd; --plus-color:#86efac88; --plus-hover-color:#86efacff; }
+  .background-boxes-cell.color-3{ --box-color:#fde04744; --box-color-strong:#fde047ff; --box-shadow-color:#fde047aa; --box-shadow-strong:#fde047ff; --box-border-color:#fde04755; --box-border-strong:#fde047dd; --plus-color:#fde04788; --plus-hover-color:#fde047ff; }
+  .background-boxes-cell.color-4{ --box-color:#fca5a544; --box-color-strong:#fca5a5ff; --box-shadow-color:#fca5a5aa; --box-shadow-strong:#fca5a5ff; --box-border-color:#fca5a555; --box-border-strong:#fca5a5dd; --plus-color:#fca5a588; --plus-hover-color:#fca5a5ff; }
+  .background-boxes-cell.color-5{ --box-color:#d8b4fe44; --box-color-strong:#d8b4feff; --box-shadow-color:#d8b4feaa; --box-shadow-strong:#d8b4feff; --box-border-color:#d8b4fe55; --box-border-strong:#d8b4fedd; --plus-color:#d8b4fe88; --plus-hover-color:#d8b4feff; }
+  .background-boxes-cell.color-6{ --box-color:#a5b4fc44; --box-color-strong:#a5b4fcff; --box-shadow-color:#a5b4fcaa; --box-shadow-strong:#a5b4fcff; --box-border-color:#a5b4fc55; --box-border-strong:#a5b4fcdd; --plus-color:#a5b4fc88; --plus-hover-color:#a5b4fcff; }
+  .background-boxes-cell.color-7{ --box-color:#c4b5fd44; --box-color-strong:#c4b5fdff; --box-shadow-color:#c4b5fdaa; --box-shadow-strong:#c4b5fdff; --box-border-color:#c4b5fd55; --box-border-strong:#c4b5fddd; --plus-color:#c4b5fd88; --plus-hover-color:#c4b5fdff; }
+
+    @keyframes boxPulse{
+      0%,100%{ opacity:0.28; transform:scale3d(1,1,1); }
+      40%{ opacity:0.72; transform:scale3d(1.07,1.07,1); }
+      60%{ opacity:0.82; transform:scale3d(1.05,1.05,1); }
+    }
+
+    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:12; cursor:move; user-select:none; touch-action:none; }
+    .frame.hidden{ display:none; }
+    .frame-badge{ position:absolute; top:10px; left:10px; background:var(--panel-bg); border:1px solid var(--panel-border); color:var(--app-fg); border-radius:0.75rem; padding:0.35rem 0.7rem; font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; pointer-events:none; }
+
+    @media (max-width:960px){ .control-stack{ top:.75rem; left:.75rem } .chip{ padding:.45rem .75rem } }
+
+    @media (prefers-reduced-motion: reduce){
+      .background-boxes-cell{ animation:none; }
+    }
+  </style>
 </head>
-<body>
-<div id="map"></div>
+<body data-theme="dark">
+  <div id="map"></div>
 
-<div id="frame"><div class="badge">Drag me · F toggles · WASD to nudge</div></div>
-
-<div id="toolbar">
-  <button id="btnMecca"  class="sqbtn" title="Mecca"  type="button">Mecca</button>
-  <button id="btnMedina" class="sqbtn" title="Medina" type="button">Medina</button>
-  <button id="btnHUD"    class="sqbtn" title="Hide/Show HUD (H)" type="button">HUD (H)</button>
-</div>
-
-<div id="topbar">
-  <div id="hudwrap">
-    <button id="btnPrev" class="btnNav" title="Previous date (,)">&larr;</button>
-    <input id="time" type="range" min="0" max="1" step="1" value="0"/>
-    <button id="btnNext" class="btnNav" title="Next date (.)">&rarr;</button>
-    <span id="label" class="pill"></span>
-    <span id="z" class="pill"></span>
+  <div id="frame" class="frame hidden">
+    <div class="frame-badge">Drag to reposition · F toggles visibility</div>
   </div>
-  <button id="save4kMecca"  class="btn4k" title="Save Mecca 4K"  type="button">4K Mecca</button>
-  <button id="save4kMedina" class="btn4k" title="Save Medina 4K" type="button">4K Medina</button>
-  <button id="save4kFrame"  class="btn4k" title="Save current frame 4K @ map zoom" type="button">4K (Frame)</button>
-</div>
 
-<div id="hudMini"><span id="hudMiniText">...</span></div>
-<button id="dbgToggle" title="Toggle debug" type="button">DBG</button>
-<div id="debugBox">boot…</div>
-
-<div id="welcomeModal">
-  <div id="welcomeBox">
-    <h2>Hello</h2>
-    <p>I built this website to view the evolution of western Saudi Arabia over time on wplace.live. This is my first time building a website so I apologize for any rough edges</p>
-    <p><strong>How to use:</strong></p>
-    <ul>
-      <li><strong>Timeline:</strong> Use the slider or arrow buttons to navigate dates. Keyboard: <strong>←/→</strong> or <strong>,</strong> / <strong>.</strong></li>
-      <li><strong>Quick jumps:</strong> Click <strong>Mecca</strong> or <strong>Medina</strong> buttons to center the map</li>
-      <li><strong>Frame tool:</strong> Drag the white rectangle to select an area. Press <strong>F</strong> to toggle visibility. Use <strong>WASD</strong> keys to nudge (hold Shift for bigger steps)</li>
-      <li><strong>Export 4K:</strong> Click <strong>4K Mecca</strong>, <strong>4K Medina</strong>, or <strong>4K (Frame)</strong> to download high-resolution images</li>
-      <li><strong>HUD toggle:</strong> Press <strong>H</strong> to hide/show controls for a clean view</li>
-      <li><strong>Debug mode:</strong> Press <strong>D</strong> or click <strong>DBG</strong> button</li>
-    </ul>
-    <button class="btnClose" type="button">Got it!</button>
+  <div class="control-stack">
+    <div class="control-row">
+      <button id="btnAbout" class="chip" type="button">About</button>
+      <div class="meta-pill" id="currentMeta" role="status" aria-live="polite">
+        <span id="currentLabel">—</span>
+        <span class="meta-divider">·</span>
+        <span id="currentZoom">Z 0.00</span>
+        <span class="meta-divider">·</span>
+        <span id="currentRegion">World</span>
+        <span class="meta-divider">·</span>
+        <span id="currentPosition">1 / 1</span>
+        <span id="currentBadge" class="meta-badge hidden">Latest</span>
+      </div>
+    </div>
+    <div class="control-row">
+      <button id="btnMecca" class="chip chip-ghost" type="button">Mecca</button>
+      <button id="btnMedina" class="chip chip-ghost" type="button">Medina</button>
+      <button id="btnToggleHUD" class="chip chip-ghost" type="button">Toggle HUD (H)</button>
+    </div>
   </div>
-</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-const DBG=(()=>{const box=document.getElementById('debugBox');const log=(m)=>{const t=new Date().toLocaleTimeString();box.textContent=`[${t}] ${m}\n`+box.textContent;};window.addEventListener('error',e=>log('ERR '+(e.message||'')+' @ '+(e.filename||'')+':'+(e.lineno||0)));window.addEventListener('unhandledrejection',e=>log('REJ '+(e.reason?.message||String(e.reason))));return{log};})();
-document.getElementById('dbgToggle').addEventListener('click',()=>{document.body.classList.toggle('debug');DBG.log('debug toggled');});
-const $=id=>document.getElementById(id);
-function bindClick(id,fn){const el=$(id);if(!el){DBG.log('missing #'+id);return;}el.type='button';el.onclick=fn;}
+  <div class="control-stack right" style="right:1rem;left:auto;">
+    <div class="control-row">
+      <div class="menu" id="exportMenu">
+        <button id="btnExport" class="chip" type="button">Export</button>
+        <div id="exportPanel" class="menu-panel hidden" role="menu">
+          <button id="save4kMecca" type="button">4K Mecca</button>
+          <button id="save4kMedina" type="button">4K Medina</button>
+          <button id="save4kFrame" type="button">4K Selected Frame</button>
+        </div>
+      </div>
+      <button id="btnTheme" class="chip" type="button" aria-pressed="true">Light Mode</button>
+      <button id="btnOpenLive" class="chip" type="button">Open Live</button>
+    </div>
+  </div>
 
-const map=L.map('map',{minZoom:7,maxZoom:14,zoomSnap:0.25,zoomDelta:0.25,scrollWheelZoom:true,zoomControl:true}).setView([21.422487,39.826206],11.5);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  <div class="bottom-bar" id="timelineWrapper">
+    <div class="slider-label" id="timelineLabel">Snapshot 1 / 1</div>
+    <div class="slider-controls">
+  <button id="timelinePrev" class="chip chip-ghost" type="button" aria-label="Previous snapshot">➤</button>
+      <div class="slider-wrap">
+        <input type="range" id="timelineSlider" min="0" max="0" value="0" aria-label="Snapshot position">
+      </div>
+  <button id="timelineNext" class="chip chip-ghost" type="button" aria-label="Next snapshot">➤</button>
+    </div>
+  </div>
 
-const TILE=256, OVERLAY_Z=11;
+  <div class="modal hidden" id="aboutModal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="modal-dialog">
+      <button class="modal-close" type="button" id="closeAbout" aria-label="Close dialog">&times;</button>
+      <h2 id="aboutTitle">Hello and welcome</h2>
+      <p>This archive only includes Western Saudi Arabia due to space limitations.</p>
+      <p>GUIDE:</p>
+      <ul>
+        <li>Drag the map or use the mouse wheel / pinch to pan and zoom.</li>
+        <li>Scrub the slider or tap <kbd>,</kbd> / <kbd>.</kbd> (or arrow keys) to move through available snapshots.</li>
+        <li>Jump to key regions with the Mecca and Medina buttons.</li>
+        <li>Press <kbd>H</kbd> or use “Toggle HUD” to hide the interface for clean screenshots.</li>
+        <li>Press <kbd>F</kbd> to show or hide the draggable export frame; reposition it to capture a crop.</li>
+        <li>Open the Export menu to save 4K composites of Mecca, Medina, or the selected frame.</li>
+        <li>Use the Theme toggle to switch between dark and light backgrounds.</li>
+      </ul>
+      <p>You can close this guide with the × button or by clicking the shaded backdrop.</p>
+      <div class="modal-actions">
+        <a href="https://github.com/Schweinefilet/wplacearchivesaudi" target="_blank" rel="noopener noreferrer">GitHub Repository (please star the repository :D)</a>
+      </div>
+    </div>
+  </div>
 
-// Start with a harmless 1px tile; swap URL after snaps load so we avoid 404 spam
-const TRANSPARENT_1PX='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
-let overlay=L.tileLayer(TRANSPARENT_1PX,{tileSize:256,minZoom:7,maxZoom:14,minNativeZoom:OVERLAY_Z,maxNativeZoom:OVERLAY_Z,keepBuffer:6,updateWhenZooming:true,updateWhenIdle:false,errorTileUrl:TRANSPARENT_1PX}).addTo(map);
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script defer>
+    const initApp = () => {
+      const OVERLAY_ZOOM = 11;
+      const TRANSPARENT_TILE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+      const THEME_KEY = 'wplace-viewer-theme';
+      const state = { snaps: [], index: 0, currentDir: '', currentRegion: 'World', overlay: null, isHudHidden: false };
 
-let SNAPS=[{label:'loading…',dir:''}], currentDir='', currentRegion='—', snapIndex=0;
+      const elements = {
+        body: document.body,
+        timelineLabel: document.getElementById('timelineLabel'),
+        timelineSlider: document.getElementById('timelineSlider'),
+        currentLabel: document.getElementById('currentLabel'),
+        currentZoom: document.getElementById('currentZoom'),
+        currentRegion: document.getElementById('currentRegion'),
+        currentPosition: document.getElementById('currentPosition'),
+        currentBadge: document.getElementById('currentBadge'),
+        btnAbout: document.getElementById('btnAbout'),
+        btnMecca: document.getElementById('btnMecca'),
+        btnMedina: document.getElementById('btnMedina'),
+        btnToggleHUD: document.getElementById('btnToggleHUD'),
+        btnTheme: document.getElementById('btnTheme'),
+        btnOpenLive: document.getElementById('btnOpenLive'),
+        btnExport: document.getElementById('btnExport'),
+        exportPanel: document.getElementById('exportPanel'),
+        exportMenu: document.getElementById('exportMenu'),
+        aboutModal: document.getElementById('aboutModal'),
+        closeAbout: document.getElementById('closeAbout'),
+        frame: document.getElementById('frame'),
+        timelinePrev: document.getElementById('timelinePrev'),
+        timelineNext: document.getElementById('timelineNext')
+      };
 
-const timeEl=$('time'), labelEl=$('label'), zEl=$('z'), hudMini=$('hudMini'), hudMiniText=$('hudMiniText'), btnPrev=$('btnPrev'), btnNext=$('btnNext');
-const topbar=$('topbar'), toolbar=$('toolbar'), leafletCtrls=document.querySelector('.leaflet-control-container');
+      function ensureBackgroundBoxes(){
+        if(!elements.aboutModal) return;
+        if(elements.aboutModal.querySelector('.background-boxes')) return;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'background-boxes';
+        wrapper.setAttribute('aria-hidden', 'true');
+  const isCompact = window.innerWidth <= 768;
+        wrapper.classList.toggle('is-mobile', isCompact);
+  const cellWidth = isCompact ? 96 : 128;
+  const cellHeight = isCompact ? 56 : 72;
+        wrapper.style.setProperty('--cell-width', cellWidth + 'px');
+        wrapper.style.setProperty('--cell-height', cellHeight + 'px');
+        const inner = document.createElement('div');
+        inner.className = 'background-boxes-inner';
+  const rows = isCompact ? 18 : 28;
+  const cols = isCompact ? 24 : 34;
+        const colorVariants = ['color-0','color-1','color-2','color-3','color-4','color-5','color-6','color-7'];
+        const fragment = document.createDocumentFragment();
+        for(let i=0; i<rows; i++){
+          const row = document.createElement('div');
+          row.className = 'background-boxes-row';
+          for(let j=0; j<cols; j++){
+            const cell = document.createElement('div');
+            const variant = colorVariants[Math.floor(Math.random() * colorVariants.length)];
+            cell.className = `background-boxes-cell ${variant}`;
+            cell.style.setProperty('--delay', `${(Math.random() * -5).toFixed(2)}s`);
+            cell.style.setProperty('--duration', `${(7 + Math.random() * 3).toFixed(2)}s`);
+            if(((i + j) % 5) === 0){
+              cell.classList.add('has-plus');
+              const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+              svg.setAttribute('viewBox','0 0 24 24');
+              svg.setAttribute('fill','none');
+              svg.setAttribute('stroke-width','1.5');
+              svg.setAttribute('stroke','currentColor');
+              svg.classList.add('background-boxes-plus');
+              const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+              path.setAttribute('d','M12 6v12m6-6H6');
+              path.setAttribute('stroke-linecap','round');
+              path.setAttribute('stroke-linejoin','round');
+              svg.appendChild(path);
+              cell.appendChild(svg);
+            }
+            row.appendChild(cell);
+          }
+          fragment.appendChild(row);
+        }
+        inner.appendChild(fragment);
+        wrapper.appendChild(inner);
+        elements.aboutModal.appendChild(wrapper);
+      }
 
-function updateTimelineButtons(){if(btnPrev)btnPrev.disabled=(snapIndex<=0);if(btnNext)btnNext.disabled=(snapIndex>=SNAPS.length-1);}
-function setSnap(i){snapIndex=Math.max(0,Math.min(SNAPS.length-1,i|0));if(timeEl)timeEl.value=String(snapIndex);const snap=SNAPS[snapIndex]||{label:'—',dir:''};if(labelEl)labelEl.textContent=snap.label||'—';currentDir=snap.dir||'';if(currentDir)overlay.setUrl(`${currentDir}/{x}/{y}.png`);updateHUD();updateTimelineButtons();}
-function seek(d){setSnap(snapIndex+d);}
-function updateHUD(){if(zEl)zEl.textContent='Zoom '+map.getZoom().toFixed(2);if(hudMiniText){const dateText=(labelEl?.textContent||'—').trim();hudMiniText.textContent=`${dateText} · ${currentRegion} · Z ${map.getZoom().toFixed(2)}`;}}
-function applyHUD(){const minimal=document.body.classList.contains('minimal');if(minimal){if(topbar)topbar.style.display='none';if(toolbar)toolbar.style.display='none';if(leafletCtrls)leafletCtrls.style.display='none';if(hudMini)hudMini.style.display='flex';}else{if(topbar)topbar.style.display='';if(toolbar)toolbar.style.display='';if(leafletCtrls)leafletCtrls.style.display='';if(hudMini)hudMini.style.display='none';}updateHUD();}
+      function initTheme(){ const saved = localStorage.getItem(THEME_KEY); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const initial = (saved === 'dark' || saved === 'light') ? saved : (prefersDark ? 'dark' : 'light'); setTheme(initial); }
+      function setTheme(theme){ const next = theme === 'dark' ? 'dark' : 'light'; elements.body.dataset.theme = next; localStorage.setItem(THEME_KEY, next); elements.btnTheme.textContent = next === 'dark' ? 'Light Mode' : 'Dark Mode'; }
+      function detectMobile(){ const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) || window.innerWidth <= 768; if(isMobile) elements.body.classList.add('is-mobile'); else elements.body.classList.remove('is-mobile'); }
 
-if(timeEl){timeEl.min='0';timeEl.step='1';let t=null;const sched=v=>{clearTimeout(t);t=setTimeout(()=>setSnap(+v),40)};timeEl.addEventListener('input',e=>sched(e.target.value));timeEl.addEventListener('change',e=>setSnap(+e.target.value));}
-bindClick('btnPrev',()=>seek(-1));bindClick('btnNext',()=>seek(+1));
-window.addEventListener('keydown',(e)=>{const k=e.key;const kl=k.toLowerCase();if(k===','){e.preventDefault();seek(-1);}if(k==='.'){e.preventDefault();seek(+1);}if(k==='ArrowLeft'){e.preventDefault();seek(-1);}if(k==='ArrowRight'){e.preventDefault();seek(+1);}if(kl==='h'){e.preventDefault();document.body.classList.toggle('minimal');applyHUD();}if(kl==='d'){e.preventDefault();document.body.classList.toggle('debug');DBG.log('debug toggled');}});
+      initTheme(); detectMobile(); window.addEventListener('resize', detectMobile);
 
-const frameEl=$('frame');
-function initFrame(){const box=map.getContainer().getBoundingClientRect();const W=Math.min(Math.floor(box.width*0.55),900);const H=Math.floor(W*9/16);const x=Math.round((box.width-W)/2);const y=Math.round((box.height-H)/2);setFrameRect({x,y,w:W,h:H});}
-function getFrameRect(){const s=getComputedStyle(frameEl);return{x:parseInt(s.left)||0,y:parseInt(s.top)||0,w:parseInt(s.width)||0,h:parseInt(s.height)||0};}
-function setFrameRect(r){const box=map.getContainer().getBoundingClientRect();r.w=Math.max(50,Math.min(r.w,box.width));r.h=Math.max(50,Math.min(r.h,box.height));r.x=Math.max(0,Math.min(r.x,box.width-r.w));r.y=Math.max(0,Math.min(r.y,box.height-r.h));frameEl.style.left=r.x+'px';frameEl.style.top=r.y+'px';frameEl.style.width=r.w+'px';frameEl.style.height=r.h+'px';}
-function moveFrame(dx,dy){const r=getFrameRect();setFrameRect({x:r.x+dx,y:r.y+dy,w:r.w,h:r.h});}
-let drag=null;frameEl.addEventListener('pointerdown',ev=>{ev.preventDefault();frameEl.setPointerCapture(ev.pointerId);const r=getFrameRect();drag={startX:ev.clientX,startY:ev.clientY,base:r};});
-window.addEventListener('pointermove',ev=>{if(!drag)return;const dx=ev.clientX-drag.startX,dy=ev.clientY-drag.startY;setFrameRect({x:drag.base.x+dx,y:drag.base.y+dy,w:drag.base.w,h:drag.base.h});});
-window.addEventListener('pointerup',()=>{drag=null;});
-window.addEventListener('resize',()=>{initFrame();});
-window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();if(k==='f'){ev.preventDefault();frameEl.classList.toggle('hidden');return;}let step=10;if(ev.altKey)step=1;if(ev.shiftKey)step=50;if(['w','a','s','d'].includes(k)){ev.preventDefault();if(k==='a')moveFrame(-step,0);if(k==='d')moveFrame(step,0);if(k==='w')moveFrame(0,-step);if(k==='s')moveFrame(0,step);}});
-initFrame();
+  const map = L.map('map', { minZoom:7, maxZoom:14, zoomSnap:0.25, zoomDelta:0.25, scrollWheelZoom:true, zoomControl:false, fadeAnimation:false, preferCanvas:false }).setView([21.422487,39.826206],11.5);
 
-function boundsFromCenterAndPx(centerLL,z,pxW,pxH){const pc=map.project(centerLL,z);const pNW=L.point(pc.x-pxW/2,pc.y-pxH/2);const pSE=L.point(pc.x+pxW/2,pc.y+pxH/2);return L.latLngBounds(map.unproject(pNW,z),map.unproject(pSE,z));}
-function containerRectToBounds(rect,zoom){const tl=L.point(rect.x,rect.y),br=L.point(rect.x+rect.w,rect.y+rect.h);const nw=map.containerPointToLatLng(tl);const se=map.containerPointToLatLng(br);return L.latLngBounds(nw,se);}
-function loadImg(url,cors){return new Promise((resolve)=>{const img=new Image();if(cors)img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src=url;});}
-function safeName(s){return String(s||'frame').replace(/[^0-9A-Za-z_-]/g,'');}
-async function drawTileGridToCanvas(ctx,bounds,canvasW,canvasH,captureZ,tileZ,provideImg){const nwZ=map.project(bounds.getNorthWest(),tileZ),seZ=map.project(bounds.getSouthEast(),tileZ);const x0=Math.floor(nwZ.x/256),x1=Math.floor(seZ.x/256),y0=Math.floor(nwZ.y/256),y1=Math.floor(seZ.y/256);const boundsCapNW=map.project(bounds.getNorthWest(),captureZ),boundsCapSE=map.project(bounds.getSouthEast(),captureZ);const capW=boundsCapSE.x-boundsCapNW.x,capH=boundsCapSE.y-boundsCapNW.y;for(let x=x0;x<=x1;x++){for(let y=y0;y<=y1;y++){const llNW=map.unproject([x*256,y*256],tileZ),llSE=map.unproject([(x+1)*256,(y+1)*256],tileZ);const pNWc=map.project(llNW,captureZ),pSEc=map.project(llSE,captureZ);const x1c=Math.round((pNWc.x-boundsCapNW.x)*(canvasW/capW)),y1c=Math.round((pNWc.y-boundsCapNW.y)*(canvasH/capH));const x2c=Math.round((pSEc.x-boundsCapNW.x)*(canvasW/capW)),y2c=Math.round((pSEc.y-boundsCapNW.y)*(canvasH/capH));const img=await provideImg(x,y);if(img){try{ctx.drawImage(img,0,0,img.width,img.height,x1c,y1c,x2c-x1c,y2c-y1c);}catch(_){}}}}}
-function drawBadge(ctx,text,W,H){const pad=28,rad=18;ctx.save();ctx.font='700 56px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif';ctx.textBaseline='top';const tw=Math.ceil(ctx.measureText(text).width),th=64;const x=32,y=32,w=tw+pad*2,h=th+pad*2;ctx.beginPath();ctx.moveTo(x+rad,y);ctx.arcTo(x+w,y,x+w,y+h,rad);ctx.arcTo(x+w,y+h,x,y+h,rad);ctx.arcTo(x,y+h,x,y,rad);ctx.arcTo(x,y,x+w,y,rad);ctx.closePath();ctx.fillStyle='rgba(20,24,31,0.85)';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.stroke();ctx.fillStyle='#e7e7e7';ctx.fillText(text,x+pad,y+pad);ctx.restore();}
-async function renderBounds(dir,bounds,width,height,captureZoom,includeOSMFirst=true,labelText=''){const c=document.createElement('canvas');c.width=width;c.height=height;const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';const zTile=Math.floor(captureZoom);if(includeOSMFirst){await drawTileGridToCanvas(ctx,bounds,width,height,captureZoom,zTile,async(x,y)=>await loadImg(`https://tile.openstreetmap.org/${zTile}/${x}/${y}.png`,true));}await drawTileGridToCanvas(ctx,bounds,width,height,captureZoom,OVERLAY_Z,async(x,y)=>await loadImg(`${dir}/${x}/${y}.png`,false));if(labelText){drawBadge(ctx,labelText,width,height);}return c;}
-async function safeDownload(canvas,name,triedOSM){try{await new Promise((resolve,reject)=>{canvas.toBlob(b=>{if(!b){reject(new Error('no blob'));return;}const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);resolve(true);},'image/png');});return true;}catch(e){DBG.log('download failed: '+e.message+(triedOSM?' - retry overlay only':''));return false;}}
-function labelDate(){return safeName(labelEl?.textContent);}
+      // Pixel snapping to avoid seams and force crisp tiles similar to samuelscheit implementation
+      (() => {
+        const original = L.GridLayer.prototype._initTile;
+        L.GridLayer.include({
+          _initTile(tile){
+            original.call(this, tile);
+            const size = this.getTileSize();
+            tile.setAttribute('width', size.x);
+            tile.setAttribute('height', size.y);
+            tile.style.width = size.x + 'px';
+            tile.style.height = size.y + 'px';
+            tile.style.margin = '-1px';
+            tile.style.willChange = 'transform';
+            tile.style.imageRendering = 'pixelated';
+            tile.style.backfaceVisibility = 'hidden';
+            tile.style.transform = 'translate3d(0,0,0)';
+            if(tile._tilePos){
+              tile._tilePos._round();
+              L.DomUtil.setPosition(tile, tile._tilePos, false);
+            }
+          }
+        });
+      })();
 
-const meccaCenter=L.latLng(21.422487,39.826206), medinaCenter=L.latLng(24.467240,39.611432);
-function makeLabel(region,z){const dateText=(labelEl?.textContent||'—').trim();return `${dateText} · ${region} · Z ${z.toFixed(2)}`;}
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' }).addTo(map);
 
-bindClick('btnMecca',()=>{currentRegion='Mecca';map.fitBounds(L.latLngBounds([21.30,39.676],[21.545,39.976]),{padding:[40,40]});updateHUD();});
-bindClick('btnMedina',()=>{currentRegion='Medina';map.fitBounds(L.latLngBounds([24.3497,39.3700],[24.6997,39.9790]),{padding:[40,40]});updateHUD();});
-bindClick('btnHUD',()=>{document.body.classList.toggle('minimal');applyHUD();});
+  state.overlay = L.tileLayer(TRANSPARENT_TILE, { tileSize:256, minZoom:7, maxZoom:14, minNativeZoom:OVERLAY_ZOOM, maxNativeZoom:OVERLAY_ZOOM, keepBuffer:6, updateWhenZooming:true, updateWhenIdle:false, errorTileUrl:TRANSPARENT_TILE, crossOrigin:false, noWrap:true }).addTo(map);
 
-bindClick('save4kMecca',async()=>{currentRegion='Mecca';const label=labelDate();const z=13.5,W=3840,H=2160;const b=boundsFromCenterAndPx(meccaCenter,z,W,H);let canvas=await renderBounds(currentDir,b,W,H,z,true,makeLabel('Mecca',z));if(!await safeDownload(canvas,`mecca_${label}_4k.png`,true)){canvas=await renderBounds(currentDir,b,W,H,z,false,makeLabel('Mecca',z));await safeDownload(canvas,`mecca_${label}_4k.png`,false);}});
-bindClick('save4kMedina',async()=>{currentRegion='Medina';const label=labelDate();const z=13,W=3840,H=2160;const b=boundsFromCenterAndPx(medinaCenter,z,W,H);let canvas=await renderBounds(currentDir,b,W,H,z,true,makeLabel('Medina',z));if(!await safeDownload(canvas,`medina_${label}_4k.png`,true)){canvas=await renderBounds(currentDir,b,W,H,z,false,makeLabel('Medina',z));await safeDownload(canvas,`medina_${label}_4k.png`,false);}});
-bindClick('save4kFrame',async()=>{const rect=(function(){const s=getComputedStyle(frameEl);return{x:parseInt(s.left)||0,y:parseInt(s.top)||0,w:parseInt(s.width)||0,h:parseInt(s.height)||0};})();const z=map.getZoom(),W=3840,H=2160;const b=containerRectToBounds(rect,z);const label=labelDate();const region=currentRegion==='—'?'Frame':currentRegion;let canvas=await renderBounds(currentDir,b,W,H,z,true,`${label} · ${region} · Z ${z.toFixed(2)}`);if(!await safeDownload(canvas,`frame_${label}_z${z.toFixed(2)}_4k.png`,true)){canvas=await renderBounds(currentDir,b,W,H,z,false,`${label} · ${region} · Z ${z.toFixed(2)}`);await safeDownload(canvas,`frame_${label}_z${z.toFixed(2)}_4k.png`,false);}});
+      function syncSliderBounds(){
+        if(!elements.timelineSlider) return;
+        const max = Math.max(0, state.snaps.length - 1);
+        elements.timelineSlider.min = '0';
+        elements.timelineSlider.max = String(max);
+        elements.timelineSlider.step = '1';
+        elements.timelineSlider.disabled = state.snaps.length <= 1;
+      }
 
-(async()=>{try{const r=await fetch('snaps.json',{cache:'no-store'});if(r.ok)SNAPS=await r.json();}catch(_){}if(!Array.isArray(SNAPS)||SNAPS.length===0)SNAPS=[{label:'none',dir:''}];if(timeEl){timeEl.max=String(SNAPS.length-1);timeEl.value=String(SNAPS.length-1);}setSnap(SNAPS.length-1);map.on('zoom zoomend moveend',updateHUD);applyHUD();})();
+      function updateSliderUI(){
+        if(!elements.timelineSlider || !elements.timelineLabel) return;
+        elements.timelineSlider.value = String(state.index);
+        const snap = state.snaps[state.index];
+        const labelText = snap ? snap.label : 'Snapshot';
+        elements.timelineLabel.textContent = `${labelText} · ${state.index + 1} / ${state.snaps.length}`;
+        if(elements.timelinePrev) elements.timelinePrev.disabled = state.index <= 0;
+        if(elements.timelineNext) elements.timelineNext.disabled = state.index >= state.snaps.length - 1;
+      }
 
-// Welcome modal
-(()=>{const modal=$('welcomeModal');const closeBtn=modal?.querySelector('.btnClose');const STORAGE_KEY='wplace_welcome_shown';const hasSeenWelcome=localStorage.getItem(STORAGE_KEY);if(!hasSeenWelcome&&modal){setTimeout(()=>modal.classList.add('show'),500);}if(closeBtn){closeBtn.onclick=()=>{modal.classList.remove('show');localStorage.setItem(STORAGE_KEY,'1');};}})();
+      function setHudHidden(next){
+        state.isHudHidden = !!next;
+        elements.body.classList.toggle('hud-hidden', state.isHudHidden);
+        if(elements.btnToggleHUD) elements.btnToggleHUD.setAttribute('aria-pressed', state.isHudHidden ? 'true' : 'false');
+      }
 
-DBG.log('ready');
-</script>
+      function updateMeta(){
+        const snap = state.snaps[state.index];
+        elements.currentLabel.textContent = snap ? snap.label : '—';
+        elements.currentZoom.textContent = 'Z ' + map.getZoom().toFixed(2);
+        elements.currentRegion.textContent = state.currentRegion;
+        elements.currentPosition.textContent = `${state.index + 1} / ${state.snaps.length}`;
+        elements.currentBadge.classList.toggle('hidden', state.index !== (state.snaps.length - 1));
+        document.title = (snap ? snap.label + ' - ' : '') + 'WPlace Archive Viewer';
+        updateSliderUI();
+      }
+
+      function setSnap(n){
+        if(!Array.isArray(state.snaps) || !state.snaps.length) return;
+        const clamped = Math.max(0, Math.min(state.snaps.length - 1, n | 0));
+        state.index = clamped;
+        const snap = state.snaps[state.index] || null;
+        state.currentDir = snap && snap.dir ? snap.dir : '';
+        if(state.currentDir){
+          state.overlay.setUrl(`${state.currentDir}/{x}/{y}.png`);
+        } else {
+          state.overlay.setUrl(TRANSPARENT_TILE);
+        }
+        updateMeta();
+      }
+
+      function stepSnap(d){ setSnap(state.index + d); }
+
+  function openAbout(){ if(elements.aboutModal){ ensureBackgroundBoxes(); elements.aboutModal.classList.remove('hidden'); } }
+      function closeAbout(){
+        if(!elements.aboutModal) return;
+        elements.aboutModal.classList.add('hidden');
+        const bg = elements.aboutModal.querySelector('.background-boxes');
+        if(bg) bg.remove();
+      }
+
+      elements.btnExport.addEventListener('click', e=>{ e.stopPropagation(); elements.exportPanel.classList.toggle('hidden'); });
+      document.addEventListener('click', e=>{
+        if(elements.exportMenu && !elements.exportMenu.contains(e.target)) elements.exportPanel.classList.add('hidden');
+        if(elements.aboutModal && !elements.aboutModal.classList.contains('hidden')){
+          const dialog = elements.aboutModal.querySelector('.modal-dialog');
+          if(dialog && !dialog.contains(e.target) && e.target !== elements.btnAbout) closeAbout();
+        }
+      });
+      elements.btnAbout.addEventListener('click', openAbout);
+      if(elements.closeAbout) elements.closeAbout.addEventListener('click', closeAbout);
+      if(elements.aboutModal) elements.aboutModal.addEventListener('click', ev=>{ if(ev.target === elements.aboutModal) closeAbout(); });
+  if(elements.timelineSlider) elements.timelineSlider.addEventListener('input', ev=>{ const idx = Number(ev.target.value); if(!Number.isNaN(idx)) setSnap(idx); });
+  if(elements.timelinePrev) elements.timelinePrev.addEventListener('click', ()=>{ stepSnap(-1); });
+  if(elements.timelineNext) elements.timelineNext.addEventListener('click', ()=>{ stepSnap(1); });
+      if(elements.btnToggleHUD) elements.btnToggleHUD.addEventListener('click', ()=>{ setHudHidden(!state.isHudHidden); });
+
+      elements.btnTheme.addEventListener('click', ()=>{ const cur = elements.body.dataset.theme === 'dark' ? 'dark' : 'light'; setTheme(cur === 'dark' ? 'light' : 'dark'); });
+      elements.btnOpenLive.addEventListener('click', ()=>{ const c=map.getCenter(); const z=map.getZoom(); window.open(`https://wplace.live/?lat=${c.lat.toFixed(5)}&lng=${c.lng.toFixed(5)}&zoom=${Math.max(z,10.61).toFixed(2)}`,'_blank'); });
+
+      elements.btnMecca.addEventListener('click', ()=>{ state.currentRegion='Mecca'; map.fitBounds(L.latLngBounds([21.30,39.676],[21.545,39.976]),{padding:[40,40]}); updateMeta(); });
+      elements.btnMedina.addEventListener('click', ()=>{ state.currentRegion='Medina'; map.fitBounds(L.latLngBounds([24.3497,39.37],[24.6997,39.979]),{padding:[40,40]}); updateMeta(); });
+
+      map.on('zoom zoomend moveend', updateMeta);
+
+      setHudHidden(state.isHudHidden);
+      openAbout();
+
+      document.addEventListener('keydown', (ev)=>{
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if(['INPUT','TEXTAREA','SELECT'].includes(tag)) return;
+        const k = ev.key.toLowerCase();
+        if(k === ',' || ev.key === 'ArrowLeft'){ ev.preventDefault(); stepSnap(-1); }
+        if(k === '.' || ev.key === 'ArrowRight'){ ev.preventDefault(); stepSnap(1); }
+        if(k === 'h'){ ev.preventDefault(); setHudHidden(!state.isHudHidden); }
+  if(k === 'f'){ ev.preventDefault(); if(elements.frame) elements.frame.classList.toggle('hidden'); }
+        if(k === 'escape' && elements.aboutModal && !elements.aboutModal.classList.contains('hidden')){ ev.preventDefault(); closeAbout(); }
+      });
+
+      // frame dragging
+      const frameState = { drag: null };
+      function initFrame(){ const rect = map.getContainer().getBoundingClientRect(); const w = Math.min(Math.floor(rect.width * 0.55), 900); const h = Math.floor(w * 9 / 16); const x = Math.round((rect.width - w)/2); const y = Math.round((rect.height - h)/2); setFrameRect({x,y,w,h}); }
+      function setFrameRect(r){ const box=map.getContainer().getBoundingClientRect(); const next = {...r}; next.w = Math.max(60, Math.min(next.w, box.width)); next.h = Math.max(60, Math.min(next.h, box.height)); next.x = Math.max(0, Math.min(next.x, box.width-next.w)); next.y = Math.max(0, Math.min(next.y, box.height-next.h)); elements.frame.style.left = next.x+'px'; elements.frame.style.top = next.y+'px'; elements.frame.style.width = next.w+'px'; elements.frame.style.height = next.h+'px'; }
+      function getFrameRect(){ const s=getComputedStyle(elements.frame); return { x: parseInt(s.left,10)||0, y:parseInt(s.top,10)||0, w:parseInt(s.width,10)||0, h:parseInt(s.height,10)||0 }; }
+      elements.frame.addEventListener('pointerdown', e=>{ e.preventDefault(); elements.frame.setPointerCapture(e.pointerId); const rect = getFrameRect(); frameState.drag = { startX:e.clientX, startY:e.clientY, base:rect, id:e.pointerId }; });
+      window.addEventListener('pointermove', e=>{ if(!frameState.drag) return; const dx = e.clientX - frameState.drag.startX; const dy = e.clientY - frameState.drag.startY; setFrameRect({ x: frameState.drag.base.x + dx, y: frameState.drag.base.y + dy, w: frameState.drag.base.w, h: frameState.drag.base.h }); });
+      window.addEventListener('pointerup', e=>{ if(frameState.drag && e.pointerId === frameState.drag.id) frameState.drag = null; });
+      window.addEventListener('resize', initFrame);
+
+      async function loadSnaps(){
+        try{
+          const res = await fetch('snaps.json', {cache:'no-store'});
+          if(res.ok){
+            const data = await res.json();
+            if(Array.isArray(data) && data.length) state.snaps = data;
+          }
+        } catch(err){
+          console.error('Failed to load snaps.json', err);
+        }
+        if(!Array.isArray(state.snaps) || state.snaps.length === 0){
+          state.snaps = [{ label: 'Snapshot', dir: '' }];
+        }
+        syncSliderBounds();
+        setSnap(state.snaps.length - 1);
+        initFrame();
+      }
+      loadSnaps();
+    };
+
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', initApp, { once: true });
+    } else {
+      initApp();
+    }
+  </script>
 </body>
 </html>
