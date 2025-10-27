@@ -133,6 +133,31 @@ function GetAllReleases {
   return $allReleases
 }
 
+function CheckSnapshotPast9PM {
+  param([string]$Date, [string]$Owner, [string]$Repo, [string]$Token)
+  
+  # Get releases for this date
+  $releases = GetAllReleases -Owner $Owner -Repo $Repo -Token $Token
+  $matchingReleases = $releases | Where-Object { $_.tag_name -match $Date }
+  
+  if ($matchingReleases.Count -eq 0) {
+    return $false
+  }
+  
+  # Check if any release has a timestamp past 9 PM (21:00)
+  foreach ($release in $matchingReleases) {
+    # Tag format is typically: YYYY-MM-DD_HH-MM-SS or similar
+    if ($release.tag_name -match '(\d{2})-(\d{2})-(\d{2})') {
+      $hour = [int]$Matches[1]
+      if ($hour -ge 21) {
+        return $true
+      }
+    }
+  }
+  
+  return $false
+}
+
 function DownloadAsset {
   param([string]$Url, [string]$OutFile, [string]$Token)
   $headers = @{ 'Accept' = 'application/octet-stream' }
@@ -147,7 +172,8 @@ function DownloadAsset {
       $webClient.Headers.Add($key, $headers[$key])
     }
     
-    # Register progress event
+    # Register progress event with unique ID
+    $progressId = 2
     $progressHandler = {
       param($sender, $e)
       if ($e.TotalBytesToReceive -gt 0) {
@@ -155,7 +181,7 @@ function DownloadAsset {
         $receivedMB = [math]::Round($e.BytesReceived / 1MB, 2)
         $totalMB = [math]::Round($e.TotalBytesToReceive / 1MB, 2)
         
-        Write-Progress -Id 1 -Activity "Downloading $fileName" `
+        Write-Progress -Id $using:progressId -Activity "Downloading $using:fileName" `
                        -Status "$receivedMB MB / $totalMB MB" `
                        -PercentComplete $percentComplete
       }
@@ -165,14 +191,14 @@ function DownloadAsset {
     
     try {
       $webClient.DownloadFile($Url, $OutFile)
-      Write-Progress -Id 1 -Activity "Downloading $fileName" -Completed
+      Write-Progress -Id $progressId -Activity "Downloading $fileName" -Completed
       return $true
     } finally {
       Get-EventSubscriber | Where-Object { $_.SourceObject -eq $webClient } | Unregister-Event
       $webClient.Dispose()
     }
   } catch {
-    Write-Progress -Id 1 -Activity "Downloading" -Completed
+    Write-Progress -Id 2 -Activity "Downloading" -Completed
     LogError "Download failed: $($_.Exception.Message)"
     return $false
   }
@@ -192,8 +218,11 @@ function StreamExtractFiltered {
   $filterFile = Join-Path $TempDir "filter_$(Get-Random).txt"
   
   try {
+    Write-Progress -Id 3 -Activity "Scanning archive" -Status "Reading archive contents..." -PercentComplete 0
     Log "  Scanning archive contents..."
     $listing = & tar -tzf "$ArchiveFile" 2>$null
+    
+    Write-Progress -Id 3 -Activity "Filtering tiles" -Status "Filtering tiles for region..." -PercentComplete 30
     
     # Filter to only tiles in our region (and specific X folders if requested)
     $wanted = $listing | Where-Object {
@@ -216,17 +245,24 @@ function StreamExtractFiltered {
     }
     
     if ($wanted.Count -eq 0) {
+      Write-Progress -Id 3 -Activity "Extracting tiles" -Completed
       LogWarn "  No matching tiles found in archive"
       return 0
     }
     
     # Write filter file
+    Write-Progress -Id 3 -Activity "Preparing extraction" -Status "Creating filter list..." -PercentComplete 50
     $wanted | Set-Content -LiteralPath $filterFile -Encoding UTF8
     
     Log "  Extracting $($wanted.Count) tiles (filtered stream)..."
+    Write-Progress -Id 3 -Activity "Extracting tiles" -Status "Extracting $($wanted.Count) tiles..." -PercentComplete 60
     
     # Extract only filtered files, stripping path components
     & tar -xzf "$ArchiveFile" -C "$OutputDir" --strip-components=1 -T "$filterFile" 2>$null
+    
+    Write-Progress -Id 3 -Activity "Extracting tiles" -Status "Completed extraction" -PercentComplete 100
+    Start-Sleep -Milliseconds 200
+    Write-Progress -Id 3 -Activity "Extracting tiles" -Completed
     
     return $wanted.Count
     
@@ -345,7 +381,15 @@ function ProcessDateOptimized {
       # Stream parts directly into joined file
       $outStream = [System.IO.File]::OpenWrite($archiveFile)
       try {
+        $partIndex = 0
         foreach ($asset in ($assets | Sort-Object name)) {
+          $partIndex++
+          $partPercent = [math]::Round(($partIndex / $assets.Count) * 100, 1)
+          
+          Write-Progress -Id 4 -Activity "Joining multi-part archive" `
+                         -Status "Part $partIndex of $($assets.Count): $($asset.name)" `
+                         -PercentComplete $partPercent
+          
           Log "    Part: $($asset.name) ($([math]::Round($asset.size/1MB, 2)) MB)"
           
           $tempPart = Join-Path $dateTempDir $asset.name
@@ -363,6 +407,7 @@ function ProcessDateOptimized {
           
           Remove-Item -LiteralPath $tempPart -Force -ErrorAction SilentlyContinue
         }
+        Write-Progress -Id 4 -Activity "Joining multi-part archive" -Completed
       } finally {
         $outStream.Close()
       }
@@ -384,9 +429,17 @@ function ProcessDateOptimized {
     }
     
     # Move extracted tiles to final location
+    Write-Progress -Id 5 -Activity "Moving tiles to final location" -Status "Starting..." -PercentComplete 0
     $moved = 0
+    $xIndex = 0
     foreach ($x in $missingFlat) {
       if ([string]::IsNullOrEmpty($x)) { continue }
+      
+      $xIndex++
+      $xPercent = [math]::Round(($xIndex / $missingFlat.Count) * 100, 1)
+      Write-Progress -Id 5 -Activity "Moving tiles to final location" `
+                     -Status "Processing X=$x ($xIndex/$($missingFlat.Count))" `
+                     -PercentComplete $xPercent
       
       $srcXDir = Join-Path $dateTempDir ([string]$x)
       if (Test-Path $srcXDir) {
@@ -412,6 +465,8 @@ function ProcessDateOptimized {
       }
     }
     
+    Write-Progress -Id 5 -Activity "Moving tiles to final location" -Completed
+    
     $finalCount = (Get-ChildItem -Path $finalDir -File -Filter "*.png" -Recurse -ErrorAction SilentlyContinue).Count
     LogSuccess "  ✓ Added $moved tiles | Total: $finalCount tiles"
     
@@ -427,6 +482,21 @@ function ProcessDateOptimized {
 Write-Host "`n=========================================" -ForegroundColor Magenta
 Write-Host "  Tile Sync - Space-Optimized Version" -ForegroundColor Magenta
 Write-Host "=========================================`n" -ForegroundColor Magenta
+
+# Check if today's date should be excluded (no snapshot past 9 PM)
+$todayStr = (Get-Date).ToString('yyyy-MM-dd')
+$shouldSkipToday = $false
+
+if ($EndDate.Date -eq (Get-Date).Date) {
+  Log "Checking if today ($todayStr) has a snapshot past 9 PM..."
+  if (-not (CheckSnapshotPast9PM -Date $todayStr -Owner $Owner -Repo $Repo -Token $token)) {
+    LogWarn "No snapshot past 9 PM found for today. Skipping $todayStr"
+    $shouldSkipToday = $true
+    $EndDate = $EndDate.AddDays(-1)
+  } else {
+    LogSuccess "Snapshot past 9 PM found for today. Including $todayStr"
+  }
+}
 
 # Scan existing tiles
 $allDates = @()
@@ -588,8 +658,11 @@ if ($ParallelJobs -gt 1) {
       
       $filterFile = Join-Path $tempDir "filter_$(Get-Random).txt"
       try {
+        Write-Progress -Id 3 -Activity "Scanning archive" -Status "Reading archive contents..." -PercentComplete 0
         Log "  Scanning archive..."
         $listing = & tar -tzf "$ArchiveFile" 2>$null
+        
+        Write-Progress -Id 3 -Activity "Filtering tiles" -Status "Filtering tiles for region..." -PercentComplete 30
         
         $wanted = $listing | Where-Object {
           if ($_ -match '/(\d+)/(\d+)\.png$') {
@@ -602,11 +675,20 @@ if ($ParallelJobs -gt 1) {
           return $false
         }
         
-        if ($wanted.Count -eq 0) { return 0 }
+        if ($wanted.Count -eq 0) {
+          Write-Progress -Id 3 -Activity "Extracting tiles" -Completed
+          return 0
+        }
         
+        Write-Progress -Id 3 -Activity "Preparing extraction" -Status "Creating filter list..." -PercentComplete 50
         $wanted | Set-Content -LiteralPath $filterFile -Encoding UTF8
         Log "  Extracting $($wanted.Count) tiles..."
+        Write-Progress -Id 3 -Activity "Extracting tiles" -Status "Extracting $($wanted.Count) tiles..." -PercentComplete 60
         & tar -xzf "$ArchiveFile" -C "$OutputDir" --strip-components=1 -T "$filterFile" 2>$null
+        
+        Write-Progress -Id 3 -Activity "Extracting tiles" -Status "Completed extraction" -PercentComplete 100
+        Start-Sleep -Milliseconds 200
+        Write-Progress -Id 3 -Activity "Extracting tiles" -Completed
         
         return $wanted.Count
       } finally {
@@ -687,7 +769,15 @@ if ($ParallelJobs -gt 1) {
         
         $outStream = [System.IO.File]::OpenWrite($archiveFile)
         try {
+          $partIndex = 0
           foreach ($asset in ($assets | Sort-Object name)) {
+            $partIndex++
+            $partPercent = [math]::Round(($partIndex / $assets.Count) * 100, 1)
+            
+            Write-Progress -Id 4 -Activity "Joining multi-part archive" `
+                           -Status "Part $partIndex of $($assets.Count): $($asset.name)" `
+                           -PercentComplete $partPercent
+            
             $tempPart = Join-Path $dateTempDir $asset.name
             if (-not (DownloadAsset -Url $asset.browser_download_url -OutFile $tempPart -Token $token)) { throw "Failed" }
             
@@ -695,6 +785,7 @@ if ($ParallelJobs -gt 1) {
             try { $inStream.CopyTo($outStream) } finally { $inStream.Close() }
             Remove-Item -LiteralPath $tempPart -Force -ErrorAction SilentlyContinue
           }
+          Write-Progress -Id 4 -Activity "Joining multi-part archive" -Completed
         } finally { $outStream.Close() }
       }
       
@@ -705,9 +796,17 @@ if ($ParallelJobs -gt 1) {
       
       if ($extracted -eq 0) { return }
       
+      Write-Progress -Id 5 -Activity "Moving tiles to final location" -Status "Starting..." -PercentComplete 0
       $moved = 0
+      $xIndex = 0
       foreach ($x in $missingFlat) {
         if ([string]::IsNullOrEmpty($x)) { continue }
+        
+        $xIndex++
+        $xPercent = [math]::Round(($xIndex / $missingFlat.Count) * 100, 1)
+        Write-Progress -Id 5 -Activity "Moving tiles to final location" `
+                       -Status "Processing X=$x ($xIndex/$($missingFlat.Count))" `
+                       -PercentComplete $xPercent
         
         $srcXDir = Join-Path $dateTempDir ([string]$x)
         if (Test-Path $srcXDir) {
@@ -727,6 +826,8 @@ if ($ParallelJobs -gt 1) {
           }
         }
       }
+      
+      Write-Progress -Id 5 -Activity "Moving tiles to final location" -Completed
       
       $finalCount = (Get-ChildItem -Path $finalDir -File -Filter "*.png" -Recurse).Count
       LogSuccess "  ✓ Added $moved tiles | Total: $finalCount tiles"
