@@ -5,7 +5,7 @@ param(
   [string]$Repo        = "wplace-archives",
   [string]$TilesRoot   = "tiles",  # Updated to relative path for Linux
   [string]$TempDir     = "/tmp/wplace-archive",  # Updated for Linux
-  [datetime]$StartDate = (Get-Date -Year 2025 -Month 8 -Day 9).Date,  # First available date
+  [datetime]$StartDate = (Get-Date -Year 2025 -Month 8 -Day 8).Date,  # First available date
   [datetime]$EndDate   = (Get-Date).Date,
   [int]$XMin = 1243,
   [int]$XMax = 1253,
@@ -22,6 +22,45 @@ function LogSuccess([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:
 function LogWarn([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Yellow }
 function LogError([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Red }
 function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+
+function UpdateSnapsJson {
+  param([string]$TilesRoot, [string]$SnapsJsonPath = "snaps.json")
+  
+  Log "Updating snaps.json..."
+  
+  # Get all tiles_* directories
+  $tileDirs = Get-ChildItem -Path $TilesRoot -Directory -Filter "tiles_*" | 
+    Where-Object { $_.Name -match '^tiles_(\d{4}-\d{2}-\d{2})$' } |
+    Sort-Object Name
+  
+  if ($tileDirs.Count -eq 0) {
+    LogWarn "No tile directories found to add to snaps.json"
+    return
+  }
+  
+  # Build the JSON array
+  $snaps = @()
+  foreach ($dir in $tileDirs) {
+    if ($dir.Name -match '^tiles_(.+)$') {
+      $dateLabel = $Matches[1]
+      $snaps += @{
+        label = $dateLabel
+        dir = "tiles/$($dir.Name)"
+      }
+    }
+  }
+  
+  # Convert to JSON with proper formatting
+  $jsonContent = ConvertTo-Json -InputObject $snaps -Depth 10
+  
+  # Write to file
+  try {
+    Set-Content -Path $SnapsJsonPath -Value $jsonContent -Encoding UTF8 -Force
+    LogSuccess "✓ Updated snaps.json with $($snaps.Count) entries"
+  } catch {
+    LogError "Failed to update snaps.json: $($_.Exception.Message)"
+  }
+}
 
 # Network tuning
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -727,4 +766,8 @@ if ($ParallelJobs -gt 1) {
 
 Write-Host "`n" -NoNewline
 LogSuccess "✓ All dates processed!"
+
+# Update snaps.json with all tile directories
+UpdateSnapsJson -TilesRoot $TilesRoot -SnapsJsonPath "snaps.json"
+
 Write-Host ""
