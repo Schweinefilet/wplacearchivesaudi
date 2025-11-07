@@ -593,35 +593,41 @@
         await Promise.all(overlayPromises);
         console.log('Overlay loaded');
 
-        // Add date label
+        // Add date label with background
         const dateText = snap.label;
-        const dateFontSize = 36;
+        const dateFontSize = 48;
         ctx.font = `bold ${dateFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.lineWidth = 4;
         
         const dateMetrics = ctx.measureText(dateText);
+        const datePadding = 15;
         const dateX = 30;
-        const dateY = 50;
+        const dateY = 60;
         
-        ctx.strokeText(dateText, dateX, dateY);
+        // Draw dark background for date
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(dateX - datePadding, dateY - dateFontSize - datePadding/2, dateMetrics.width + datePadding * 2, dateFontSize + datePadding * 1.5);
+        
+        // Draw date text
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(dateText, dateX, dateY);
 
-        // Add watermark
+        // Add watermark with background
         const watermarkText = 'wplacearchive.schweinefilet.eu.org';
-        const watermarkFontSize = 24;
+        const watermarkFontSize = 32;
         ctx.font = `${watermarkFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.lineWidth = 3;
         
-        const textMetrics = ctx.measureText(watermarkText);
-        const textX = targetWidth - textMetrics.width - 20;
-        const textY = targetHeight - 20;
+        const watermarkMetrics = ctx.measureText(watermarkText);
+        const watermarkPadding = 12;
+        const watermarkX = targetWidth - watermarkMetrics.width - 30;
+        const watermarkY = targetHeight - 30;
         
-        ctx.strokeText(watermarkText, textX, textY);
-        ctx.fillText(watermarkText, textX, textY);
+        // Draw dark background for watermark
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(watermarkX - watermarkPadding, watermarkY - watermarkFontSize - watermarkPadding/2, watermarkMetrics.width + watermarkPadding * 2, watermarkFontSize + watermarkPadding * 1.5);
+        
+        // Draw watermark text
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(watermarkText, watermarkX, watermarkY);
 
         // Download
         canvas.toBlob((blob) => {
