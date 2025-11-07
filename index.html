@@ -270,6 +270,9 @@
         btnExport: document.getElementById('btnExport'),
         exportPanel: document.getElementById('exportPanel'),
         exportMenu: document.getElementById('exportMenu'),
+        save4kMecca: document.getElementById('save4kMecca'),
+        save4kMedina: document.getElementById('save4kMedina'),
+        save4kFrame: document.getElementById('save4kFrame'),
         aboutModal: document.getElementById('aboutModal'),
         closeAbout: document.getElementById('closeAbout'),
         frame: document.getElementById('frame'),
@@ -445,6 +448,122 @@
 
       elements.btnMecca.addEventListener('click', ()=>{ state.currentRegion='Mecca'; map.fitBounds(L.latLngBounds([21.30,39.676],[21.545,39.976]),{padding:[40,40]}); updateMeta(); });
       elements.btnMedina.addEventListener('click', ()=>{ state.currentRegion='Medina'; map.fitBounds(L.latLngBounds([24.3497,39.37],[24.6997,39.979]),{padding:[40,40]}); updateMeta(); });
+
+      // Export functionality
+      async function export4K(bounds, filename) {
+        if (!state.snaps || state.snapIndex < 0) return;
+        const snap = state.snaps[state.snapIndex];
+        if (!snap || !snap.dir) return;
+
+        elements.exportPanel.classList.add('hidden');
+        
+        const width = 3840;
+        const height = 2160;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        // Fill background
+        ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
+        ctx.fillRect(0, 0, width, height);
+
+        // Calculate tile coverage
+        const zoom = OVERLAY_ZOOM;
+        const tileSize = 256;
+        const scale = Math.pow(2, zoom);
+        
+        const nwPoint = {
+          x: Math.floor((bounds.getNorthWest().lng + 180) / 360 * scale),
+          y: Math.floor((1 - Math.log(Math.tan(bounds.getNorthWest().lat * Math.PI / 180) + 1 / Math.cos(bounds.getNorthWest().lat * Math.PI / 180)) / Math.PI) / 2 * scale)
+        };
+        const sePoint = {
+          x: Math.floor((bounds.getSouthEast().lng + 180) / 360 * scale),
+          y: Math.floor((1 - Math.log(Math.tan(bounds.getSouthEast().lat * Math.PI / 180) + 1 / Math.cos(bounds.getSouthEast().lat * Math.PI / 180)) / Math.PI) / 2 * scale)
+        };
+
+        const tilesX = sePoint.x - nwPoint.x + 1;
+        const tilesY = sePoint.y - nwPoint.y + 1;
+        const totalTiles = tilesX * tilesY;
+        let loadedTiles = 0;
+
+        console.log(`Exporting ${totalTiles} tiles (${tilesX}x${tilesY}) for ${filename}`);
+
+        const tilePromises = [];
+        for (let x = nwPoint.x; x <= sePoint.x; x++) {
+          for (let y = nwPoint.y; y <= sePoint.y; y++) {
+            const tileUrl = `${snap.dir}/${x}/${y}.png`;
+            tilePromises.push(
+              new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                  const posX = (x - nwPoint.x) * tileSize * (width / (tilesX * tileSize));
+                  const posY = (y - nwPoint.y) * tileSize * (height / (tilesY * tileSize));
+                  const drawWidth = tileSize * (width / (tilesX * tileSize));
+                  const drawHeight = tileSize * (height / (tilesY * tileSize));
+                  ctx.drawImage(img, posX, posY, drawWidth, drawHeight);
+                  loadedTiles++;
+                  resolve();
+                };
+                img.onerror = () => {
+                  loadedTiles++;
+                  resolve();
+                };
+                img.src = tileUrl;
+              })
+            );
+          }
+        }
+
+        await Promise.all(tilePromises);
+
+        // Add watermark
+        const watermarkText = 'wplacearchive.schweinefilet.eu.org';
+        const watermarkFontSize = 24;
+        ctx.font = `${watermarkFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 3;
+        
+        const textMetrics = ctx.measureText(watermarkText);
+        const textX = width - textMetrics.width - 20;
+        const textY = height - 20;
+        
+        ctx.strokeText(watermarkText, textX, textY);
+        ctx.fillText(watermarkText, textX, textY);
+
+        // Download
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${filename}_${snap.label}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+          console.log(`Export complete: ${filename}_${snap.label}.png`);
+        }, 'image/png');
+      }
+
+      elements.save4kMecca.addEventListener('click', () => {
+        const bounds = L.latLngBounds([21.30, 39.676], [21.545, 39.976]);
+        export4K(bounds, 'mecca_4k');
+      });
+
+      elements.save4kMedina.addEventListener('click', () => {
+        const bounds = L.latLngBounds([24.3497, 39.37], [24.6997, 39.979]);
+        export4K(bounds, 'medina_4k');
+      });
+
+      elements.save4kFrame.addEventListener('click', () => {
+        const rect = getFrameRect();
+        const container = map.getContainer();
+        const bounds = L.latLngBounds(
+          map.containerPointToLatLng([rect.x, rect.y + rect.h]),
+          map.containerPointToLatLng([rect.x + rect.w, rect.y])
+        );
+        export4K(bounds, 'frame_4k');
+      });
 
       map.on('zoom zoomend moveend', updateMeta);
 
