@@ -593,6 +593,21 @@
         await Promise.all(overlayPromises);
         console.log('Overlay loaded');
 
+        // Add date label
+        const dateText = snap.label;
+        const dateFontSize = 36;
+        ctx.font = `bold ${dateFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 4;
+        
+        const dateMetrics = ctx.measureText(dateText);
+        const dateX = 30;
+        const dateY = 50;
+        
+        ctx.strokeText(dateText, dateX, dateY);
+        ctx.fillText(dateText, dateX, dateY);
+
         // Add watermark
         const watermarkText = 'wplacearchive.schweinefilet.eu.org';
         const watermarkFontSize = 24;
