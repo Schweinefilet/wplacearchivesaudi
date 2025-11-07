@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>WPlace Archive Viewer</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     :root {
@@ -270,6 +271,9 @@
         btnExport: document.getElementById('btnExport'),
         exportPanel: document.getElementById('exportPanel'),
         exportMenu: document.getElementById('exportMenu'),
+        save4kMecca: document.getElementById('save4kMecca'),
+        save4kMedina: document.getElementById('save4kMedina'),
+        save4kFrame: document.getElementById('save4kFrame'),
         aboutModal: document.getElementById('aboutModal'),
         closeAbout: document.getElementById('closeAbout'),
         frame: document.getElementById('frame'),
@@ -445,6 +449,211 @@
 
       elements.btnMecca.addEventListener('click', ()=>{ state.currentRegion='Mecca'; map.fitBounds(L.latLngBounds([21.30,39.676],[21.545,39.976]),{padding:[40,40]}); updateMeta(); });
       elements.btnMedina.addEventListener('click', ()=>{ state.currentRegion='Medina'; map.fitBounds(L.latLngBounds([24.3497,39.37],[24.6997,39.979]),{padding:[40,40]}); updateMeta(); });
+
+      // Export functionality
+      async function export4K(bounds, filename) {
+        console.log('export4K called with:', filename);
+        
+        if (!state.snaps || state.index === undefined || state.index < 0) {
+          console.error('No snaps or invalid index');
+          return;
+        }
+        const snap = state.snaps[state.index];
+        
+        if (!snap || !snap.dir) {
+          console.error('Invalid snap or snap.dir');
+          return;
+        }
+
+        elements.exportPanel.classList.add('hidden');
+        
+        // Fixed dimensions
+        const targetWidth = 3840;
+        const targetHeight = 2160;
+        
+        // Calculate tile coordinates at zoom 11
+        const zoom = OVERLAY_ZOOM;
+        const tileSize = 256;
+        
+        // Convert lat/lng to tile coordinates (with fractional precision)
+        function lat2tile(lat, zoom) {
+          return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom);
+        }
+        function lng2tile(lng, zoom) {
+          return (lng + 180) / 360 * Math.pow(2, zoom);
+        }
+        
+        const nw = bounds.getNorthWest();
+        const se = bounds.getSouthEast();
+        
+        // Get fractional tile coordinates
+        const minTileXFrac = lng2tile(nw.lng, zoom);
+        const maxTileXFrac = lng2tile(se.lng, zoom);
+        const minTileYFrac = lat2tile(nw.lat, zoom);
+        const maxTileYFrac = lat2tile(se.lat, zoom);
+        
+        // Get integer tile bounds
+        const minTileX = Math.floor(minTileXFrac);
+        const maxTileX = Math.floor(maxTileXFrac);
+        const minTileY = Math.floor(minTileYFrac);
+        const maxTileY = Math.floor(maxTileYFrac);
+        
+        // Calculate pixel offsets within tiles
+        const offsetX = (minTileXFrac - minTileX) * tileSize;
+        const offsetY = (minTileYFrac - minTileY) * tileSize;
+        
+        // Calculate pixel dimensions of the area
+        const pixelWidth = (maxTileXFrac - minTileXFrac) * tileSize;
+        const pixelHeight = (maxTileYFrac - minTileYFrac) * tileSize;
+        
+        console.log(`Rendering area: ${pixelWidth.toFixed(0)}x${pixelHeight.toFixed(0)} px`);
+        console.log(`Tiles needed: X ${minTileX}-${maxTileX}, Y ${minTileY}-${maxTileY}`);
+        
+        // Create canvas at target resolution
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate scale to fit target dimensions while maintaining aspect ratio
+        const scaleX = targetWidth / pixelWidth;
+        const scaleY = targetHeight / pixelHeight;
+        const scale = Math.min(scaleX, scaleY);
+        
+        const scaledWidth = pixelWidth * scale;
+        const scaledHeight = pixelHeight * scale;
+        const canvasOffsetX = (targetWidth - scaledWidth) / 2;
+        const canvasOffsetY = (targetHeight - scaledHeight) / 2;
+        
+        // Fill background
+        ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        
+        // Load and render base map tiles
+        console.log('Loading base map tiles...');
+        const baseMapPromises = [];
+        for (let x = minTileX; x <= maxTileX; x++) {
+          for (let y = minTileY; y <= maxTileY; y++) {
+            const tileUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+            baseMapPromises.push(
+              new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                  // Calculate position in the composite
+                  const tilePixelX = (x - minTileX) * tileSize - offsetX;
+                  const tilePixelY = (y - minTileY) * tileSize - offsetY;
+                  
+                  // Scale and position on canvas
+                  const drawX = canvasOffsetX + tilePixelX * scale;
+                  const drawY = canvasOffsetY + tilePixelY * scale;
+                  const drawSize = tileSize * scale;
+                  
+                  ctx.drawImage(img, drawX, drawY, drawSize, drawSize);
+                  resolve();
+                };
+                img.onerror = () => resolve();
+                img.src = tileUrl;
+              })
+            );
+          }
+        }
+        await Promise.all(baseMapPromises);
+        console.log('Base map loaded');
+        
+        // Load and render overlay tiles
+        console.log('Loading overlay tiles...');
+        const overlayPromises = [];
+        for (let x = minTileX; x <= maxTileX; x++) {
+          for (let y = minTileY; y <= maxTileY; y++) {
+            const tileUrl = `${snap.dir}/${x}/${y}.png`;
+            overlayPromises.push(
+              new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                  // Calculate position in the composite
+                  const tilePixelX = (x - minTileX) * tileSize - offsetX;
+                  const tilePixelY = (y - minTileY) * tileSize - offsetY;
+                  
+                  // Scale and position on canvas
+                  const drawX = canvasOffsetX + tilePixelX * scale;
+                  const drawY = canvasOffsetY + tilePixelY * scale;
+                  const drawSize = tileSize * scale;
+                  
+                  ctx.drawImage(img, drawX, drawY, drawSize, drawSize);
+                  resolve();
+                };
+                img.onerror = () => resolve();
+                img.src = tileUrl;
+              })
+            );
+          }
+        }
+        await Promise.all(overlayPromises);
+        console.log('Overlay loaded');
+
+        // Add watermark
+        const watermarkText = 'wplacearchive.schweinefilet.eu.org';
+        const watermarkFontSize = 24;
+        ctx.font = `${watermarkFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 3;
+        
+        const textMetrics = ctx.measureText(watermarkText);
+        const textX = targetWidth - textMetrics.width - 20;
+        const textY = targetHeight - 20;
+        
+        ctx.strokeText(watermarkText, textX, textY);
+        ctx.fillText(watermarkText, textX, textY);
+
+        // Download
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${filename}_${snap.label}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+          console.log(`Export complete: ${filename}_${snap.label}.png`);
+        }, 'image/png');
+      }
+
+      if (elements.save4kMecca) {
+        elements.save4kMecca.addEventListener('click', () => {
+          console.log('Mecca export clicked');
+          const bounds = L.latLngBounds([21.30, 39.676], [21.545, 39.976]);
+          export4K(bounds, 'mecca_4k');
+        });
+      } else {
+        console.error('save4kMecca button not found');
+      }
+
+      if (elements.save4kMedina) {
+        elements.save4kMedina.addEventListener('click', () => {
+          console.log('Medina export clicked');
+          const bounds = L.latLngBounds([24.3497, 39.37], [24.6997, 39.979]);
+          export4K(bounds, 'medina_4k');
+        });
+      } else {
+        console.error('save4kMedina button not found');
+      }
+
+      if (elements.save4kFrame) {
+        elements.save4kFrame.addEventListener('click', () => {
+          console.log('Frame export clicked');
+          const rect = getFrameRect();
+          const container = map.getContainer();
+          const bounds = L.latLngBounds(
+            map.containerPointToLatLng([rect.x, rect.y + rect.h]),
+            map.containerPointToLatLng([rect.x + rect.w, rect.y])
+          );
+          export4K(bounds, 'frame_4k');
+        });
+      } else {
+        console.error('save4kFrame button not found');
+      }
 
       map.on('zoom zoomend moveend', updateMeta);
 
