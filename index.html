@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>WPlace Archive Viewer</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     :root {
@@ -545,25 +546,40 @@
         }, 'image/png');
       }
 
-      elements.save4kMecca.addEventListener('click', () => {
-        const bounds = L.latLngBounds([21.30, 39.676], [21.545, 39.976]);
-        export4K(bounds, 'mecca_4k');
-      });
+      if (elements.save4kMecca) {
+        elements.save4kMecca.addEventListener('click', () => {
+          console.log('Mecca export clicked');
+          const bounds = L.latLngBounds([21.30, 39.676], [21.545, 39.976]);
+          export4K(bounds, 'mecca_4k');
+        });
+      } else {
+        console.error('save4kMecca button not found');
+      }
 
-      elements.save4kMedina.addEventListener('click', () => {
-        const bounds = L.latLngBounds([24.3497, 39.37], [24.6997, 39.979]);
-        export4K(bounds, 'medina_4k');
-      });
+      if (elements.save4kMedina) {
+        elements.save4kMedina.addEventListener('click', () => {
+          console.log('Medina export clicked');
+          const bounds = L.latLngBounds([24.3497, 39.37], [24.6997, 39.979]);
+          export4K(bounds, 'medina_4k');
+        });
+      } else {
+        console.error('save4kMedina button not found');
+      }
 
-      elements.save4kFrame.addEventListener('click', () => {
-        const rect = getFrameRect();
-        const container = map.getContainer();
-        const bounds = L.latLngBounds(
-          map.containerPointToLatLng([rect.x, rect.y + rect.h]),
-          map.containerPointToLatLng([rect.x + rect.w, rect.y])
-        );
-        export4K(bounds, 'frame_4k');
-      });
+      if (elements.save4kFrame) {
+        elements.save4kFrame.addEventListener('click', () => {
+          console.log('Frame export clicked');
+          const rect = getFrameRect();
+          const container = map.getContainer();
+          const bounds = L.latLngBounds(
+            map.containerPointToLatLng([rect.x, rect.y + rect.h]),
+            map.containerPointToLatLng([rect.x + rect.w, rect.y])
+          );
+          export4K(bounds, 'frame_4k');
+        });
+      } else {
+        console.error('save4kFrame button not found');
+      }
 
       map.on('zoom zoomend moveend', updateMeta);
 
