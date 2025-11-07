@@ -453,15 +453,12 @@
       // Export functionality
       async function export4K(bounds, filename) {
         console.log('export4K called with:', filename);
-        console.log('state.snaps:', state.snaps);
-        console.log('state.index:', state.index);
         
         if (!state.snaps || state.index === undefined || state.index < 0) {
           console.error('No snaps or invalid index');
           return;
         }
         const snap = state.snaps[state.index];
-        console.log('Current snap:', snap);
         
         if (!snap || !snap.dir) {
           console.error('Invalid snap or snap.dir');
@@ -470,67 +467,121 @@
 
         elements.exportPanel.classList.add('hidden');
         
-        const width = 3840;
-        const height = 2160;
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-
-        // Fill background
-        ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
-        ctx.fillRect(0, 0, width, height);
-
-        // Calculate tile coverage
+        // Fixed dimensions
+        const targetWidth = 3840;
+        const targetHeight = 2160;
+        
+        // Calculate tile coordinates at zoom 11
         const zoom = OVERLAY_ZOOM;
         const tileSize = 256;
-        const scale = Math.pow(2, zoom);
+        const zoomScale = Math.pow(2, zoom);
         
-        const nwPoint = {
-          x: Math.floor((bounds.getNorthWest().lng + 180) / 360 * scale),
-          y: Math.floor((1 - Math.log(Math.tan(bounds.getNorthWest().lat * Math.PI / 180) + 1 / Math.cos(bounds.getNorthWest().lat * Math.PI / 180)) / Math.PI) / 2 * scale)
-        };
-        const sePoint = {
-          x: Math.floor((bounds.getSouthEast().lng + 180) / 360 * scale),
-          y: Math.floor((1 - Math.log(Math.tan(bounds.getSouthEast().lat * Math.PI / 180) + 1 / Math.cos(bounds.getSouthEast().lat * Math.PI / 180)) / Math.PI) / 2 * scale)
-        };
-
-        const tilesX = sePoint.x - nwPoint.x + 1;
-        const tilesY = sePoint.y - nwPoint.y + 1;
-        const totalTiles = tilesX * tilesY;
-        let loadedTiles = 0;
-
-        console.log(`Exporting ${totalTiles} tiles (${tilesX}x${tilesY}) for ${filename}`);
-        console.log('Tile range: X', nwPoint.x, '-', sePoint.x, 'Y', nwPoint.y, '-', sePoint.y);
-
-        const tilePromises = [];
-        for (let x = nwPoint.x; x <= sePoint.x; x++) {
-          for (let y = nwPoint.y; y <= sePoint.y; y++) {
-            const tileUrl = `${snap.dir}/${x}/${y}.png`;
-            tilePromises.push(
+        // Convert lat/lng to tile coordinates
+        function lat2tile(lat, zoom) {
+          return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom);
+        }
+        function lng2tile(lng, zoom) {
+          return (lng + 180) / 360 * Math.pow(2, zoom);
+        }
+        
+        const nw = bounds.getNorthWest();
+        const se = bounds.getSouthEast();
+        
+        const minTileX = Math.floor(lng2tile(nw.lng, zoom));
+        const maxTileX = Math.floor(lng2tile(se.lng, zoom));
+        const minTileY = Math.floor(lat2tile(nw.lat, zoom));
+        const maxTileY = Math.floor(lat2tile(se.lat, zoom));
+        
+        const numTilesX = maxTileX - minTileX + 1;
+        const numTilesY = maxTileY - minTileY + 1;
+        
+        // Calculate actual pixel dimensions needed
+        const actualWidth = numTilesX * tileSize;
+        const actualHeight = numTilesY * tileSize;
+        
+        console.log(`Rendering ${numTilesX}x${numTilesY} tiles (${actualWidth}x${actualHeight} px)`);
+        
+        // Create canvas with actual size, then scale to 4K
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // Fill background
+        ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        
+        // Load base map tiles first
+        console.log('Loading base map tiles...');
+        const baseMapPromises = [];
+        for (let x = minTileX; x <= maxTileX; x++) {
+          for (let y = minTileY; y <= maxTileY; y++) {
+            const tileUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+            baseMapPromises.push(
               new Promise((resolve) => {
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
-                  const posX = (x - nwPoint.x) * tileSize * (width / (tilesX * tileSize));
-                  const posY = (y - nwPoint.y) * tileSize * (height / (tilesY * tileSize));
-                  const drawWidth = tileSize * (width / (tilesX * tileSize));
-                  const drawHeight = tileSize * (height / (tilesY * tileSize));
-                  ctx.drawImage(img, posX, posY, drawWidth, drawHeight);
-                  loadedTiles++;
+                  const posX = (x - minTileX) * tileSize;
+                  const posY = (y - minTileY) * tileSize;
+                  ctx.drawImage(img, posX, posY, tileSize, tileSize);
                   resolve();
                 };
-                img.onerror = () => {
-                  loadedTiles++;
-                  resolve();
-                };
+                img.onerror = () => resolve();
                 img.src = tileUrl;
               })
             );
           }
         }
-
-        await Promise.all(tilePromises);
+        await Promise.all(baseMapPromises);
+        console.log('Base map loaded');
+        
+        // Load overlay tiles
+        console.log('Loading overlay tiles...');
+        const overlayPromises = [];
+        for (let x = minTileX; x <= maxTileX; x++) {
+          for (let y = minTileY; y <= maxTileY; y++) {
+            const tileUrl = `${snap.dir}/${x}/${y}.png`;
+            overlayPromises.push(
+              new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                  const posX = (x - minTileX) * tileSize;
+                  const posY = (y - minTileY) * tileSize;
+                  ctx.drawImage(img, posX, posY, tileSize, tileSize);
+                  resolve();
+                };
+                img.onerror = () => resolve();
+                img.src = tileUrl;
+              })
+            );
+          }
+        }
+        await Promise.all(overlayPromises);
+        console.log('Overlay loaded');
+        
+        // Scale to fit 4K dimensions while maintaining aspect ratio
+        const scaleX = targetWidth / actualWidth;
+        const scaleY = targetHeight / actualHeight;
+        const scaleFactor = Math.min(scaleX, scaleY);
+        
+        const scaledWidth = actualWidth * scaleFactor;
+        const scaledHeight = actualHeight * scaleFactor;
+        const offsetX = (targetWidth - scaledWidth) / 2;
+        const offsetY = (targetHeight - scaledHeight) / 2;
+        
+        // Create temporary canvas with original tiles
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = actualWidth;
+        tempCanvas.height = actualHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(canvas, 0, 0);
+        
+        // Clear and redraw scaled
+        ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        ctx.drawImage(tempCanvas, offsetX, offsetY, scaledWidth, scaledHeight);
 
         // Add watermark
         const watermarkText = 'wplacearchive.schweinefilet.eu.org';
@@ -541,8 +592,8 @@
         ctx.lineWidth = 3;
         
         const textMetrics = ctx.measureText(watermarkText);
-        const textX = width - textMetrics.width - 20;
-        const textY = height - 20;
+        const textX = targetWidth - textMetrics.width - 20;
+        const textY = targetHeight - 20;
         
         ctx.strokeText(watermarkText, textX, textY);
         ctx.fillText(watermarkText, textX, textY);
