@@ -454,13 +454,13 @@
       async function export4K(bounds, filename) {
         console.log('export4K called with:', filename);
         console.log('state.snaps:', state.snaps);
-        console.log('state.snapIndex:', state.snapIndex);
+        console.log('state.index:', state.index);
         
-        if (!state.snaps || state.snapIndex < 0) {
-          console.error('No snaps or invalid snapIndex');
+        if (!state.snaps || state.index === undefined || state.index < 0) {
+          console.error('No snaps or invalid index');
           return;
         }
-        const snap = state.snaps[state.snapIndex];
+        const snap = state.snaps[state.index];
         console.log('Current snap:', snap);
         
         if (!snap || !snap.dir) {
