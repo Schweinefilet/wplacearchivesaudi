@@ -452,9 +452,21 @@
 
       // Export functionality
       async function export4K(bounds, filename) {
-        if (!state.snaps || state.snapIndex < 0) return;
+        console.log('export4K called with:', filename);
+        console.log('state.snaps:', state.snaps);
+        console.log('state.snapIndex:', state.snapIndex);
+        
+        if (!state.snaps || state.snapIndex < 0) {
+          console.error('No snaps or invalid snapIndex');
+          return;
+        }
         const snap = state.snaps[state.snapIndex];
-        if (!snap || !snap.dir) return;
+        console.log('Current snap:', snap);
+        
+        if (!snap || !snap.dir) {
+          console.error('Invalid snap or snap.dir');
+          return;
+        }
 
         elements.exportPanel.classList.add('hidden');
         
@@ -489,6 +501,7 @@
         let loadedTiles = 0;
 
         console.log(`Exporting ${totalTiles} tiles (${tilesX}x${tilesY}) for ${filename}`);
+        console.log('Tile range: X', nwPoint.x, '-', sePoint.x, 'Y', nwPoint.y, '-', sePoint.y);
 
         const tilePromises = [];
         for (let x = nwPoint.x; x <= sePoint.x; x++) {
