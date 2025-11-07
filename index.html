@@ -474,9 +474,8 @@
         // Calculate tile coordinates at zoom 11
         const zoom = OVERLAY_ZOOM;
         const tileSize = 256;
-        const zoomScale = Math.pow(2, zoom);
         
-        // Convert lat/lng to tile coordinates
+        // Convert lat/lng to tile coordinates (with fractional precision)
         function lat2tile(lat, zoom) {
           return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom);
         }
@@ -487,31 +486,50 @@
         const nw = bounds.getNorthWest();
         const se = bounds.getSouthEast();
         
-        const minTileX = Math.floor(lng2tile(nw.lng, zoom));
-        const maxTileX = Math.floor(lng2tile(se.lng, zoom));
-        const minTileY = Math.floor(lat2tile(nw.lat, zoom));
-        const maxTileY = Math.floor(lat2tile(se.lat, zoom));
+        // Get fractional tile coordinates
+        const minTileXFrac = lng2tile(nw.lng, zoom);
+        const maxTileXFrac = lng2tile(se.lng, zoom);
+        const minTileYFrac = lat2tile(nw.lat, zoom);
+        const maxTileYFrac = lat2tile(se.lat, zoom);
         
-        const numTilesX = maxTileX - minTileX + 1;
-        const numTilesY = maxTileY - minTileY + 1;
+        // Get integer tile bounds
+        const minTileX = Math.floor(minTileXFrac);
+        const maxTileX = Math.floor(maxTileXFrac);
+        const minTileY = Math.floor(minTileYFrac);
+        const maxTileY = Math.floor(maxTileYFrac);
         
-        // Calculate actual pixel dimensions needed
-        const actualWidth = numTilesX * tileSize;
-        const actualHeight = numTilesY * tileSize;
+        // Calculate pixel offsets within tiles
+        const offsetX = (minTileXFrac - minTileX) * tileSize;
+        const offsetY = (minTileYFrac - minTileY) * tileSize;
         
-        console.log(`Rendering ${numTilesX}x${numTilesY} tiles (${actualWidth}x${actualHeight} px)`);
+        // Calculate pixel dimensions of the area
+        const pixelWidth = (maxTileXFrac - minTileXFrac) * tileSize;
+        const pixelHeight = (maxTileYFrac - minTileYFrac) * tileSize;
         
-        // Create canvas with actual size, then scale to 4K
+        console.log(`Rendering area: ${pixelWidth.toFixed(0)}x${pixelHeight.toFixed(0)} px`);
+        console.log(`Tiles needed: X ${minTileX}-${maxTileX}, Y ${minTileY}-${maxTileY}`);
+        
+        // Create canvas at target resolution
         const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
         canvas.height = targetHeight;
         const ctx = canvas.getContext('2d');
         
+        // Calculate scale to fit target dimensions while maintaining aspect ratio
+        const scaleX = targetWidth / pixelWidth;
+        const scaleY = targetHeight / pixelHeight;
+        const scale = Math.min(scaleX, scaleY);
+        
+        const scaledWidth = pixelWidth * scale;
+        const scaledHeight = pixelHeight * scale;
+        const canvasOffsetX = (targetWidth - scaledWidth) / 2;
+        const canvasOffsetY = (targetHeight - scaledHeight) / 2;
+        
         // Fill background
         ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
         ctx.fillRect(0, 0, targetWidth, targetHeight);
         
-        // Load base map tiles first
+        // Load and render base map tiles
         console.log('Loading base map tiles...');
         const baseMapPromises = [];
         for (let x = minTileX; x <= maxTileX; x++) {
@@ -522,9 +540,16 @@
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
-                  const posX = (x - minTileX) * tileSize;
-                  const posY = (y - minTileY) * tileSize;
-                  ctx.drawImage(img, posX, posY, tileSize, tileSize);
+                  // Calculate position in the composite
+                  const tilePixelX = (x - minTileX) * tileSize - offsetX;
+                  const tilePixelY = (y - minTileY) * tileSize - offsetY;
+                  
+                  // Scale and position on canvas
+                  const drawX = canvasOffsetX + tilePixelX * scale;
+                  const drawY = canvasOffsetY + tilePixelY * scale;
+                  const drawSize = tileSize * scale;
+                  
+                  ctx.drawImage(img, drawX, drawY, drawSize, drawSize);
                   resolve();
                 };
                 img.onerror = () => resolve();
@@ -536,7 +561,7 @@
         await Promise.all(baseMapPromises);
         console.log('Base map loaded');
         
-        // Load overlay tiles
+        // Load and render overlay tiles
         console.log('Loading overlay tiles...');
         const overlayPromises = [];
         for (let x = minTileX; x <= maxTileX; x++) {
@@ -547,9 +572,16 @@
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
-                  const posX = (x - minTileX) * tileSize;
-                  const posY = (y - minTileY) * tileSize;
-                  ctx.drawImage(img, posX, posY, tileSize, tileSize);
+                  // Calculate position in the composite
+                  const tilePixelX = (x - minTileX) * tileSize - offsetX;
+                  const tilePixelY = (y - minTileY) * tileSize - offsetY;
+                  
+                  // Scale and position on canvas
+                  const drawX = canvasOffsetX + tilePixelX * scale;
+                  const drawY = canvasOffsetY + tilePixelY * scale;
+                  const drawSize = tileSize * scale;
+                  
+                  ctx.drawImage(img, drawX, drawY, drawSize, drawSize);
                   resolve();
                 };
                 img.onerror = () => resolve();
@@ -560,28 +592,6 @@
         }
         await Promise.all(overlayPromises);
         console.log('Overlay loaded');
-        
-        // Scale to fit 4K dimensions while maintaining aspect ratio
-        const scaleX = targetWidth / actualWidth;
-        const scaleY = targetHeight / actualHeight;
-        const scaleFactor = Math.min(scaleX, scaleY);
-        
-        const scaledWidth = actualWidth * scaleFactor;
-        const scaledHeight = actualHeight * scaleFactor;
-        const offsetX = (targetWidth - scaledWidth) / 2;
-        const offsetY = (targetHeight - scaledHeight) / 2;
-        
-        // Create temporary canvas with original tiles
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = actualWidth;
-        tempCanvas.height = actualHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(canvas, 0, 0);
-        
-        // Clear and redraw scaled
-        ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
-        ctx.fillRect(0, 0, targetWidth, targetHeight);
-        ctx.drawImage(tempCanvas, offsetX, offsetY, scaledWidth, scaledHeight);
 
         // Add watermark
         const watermarkText = 'wplacearchive.schweinefilet.eu.org';
