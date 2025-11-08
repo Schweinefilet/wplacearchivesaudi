@@ -158,9 +158,23 @@
       60%{ opacity:0.82; transform:scale3d(1.05,1.05,1); }
     }
 
-    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:12; cursor:move; user-select:none; touch-action:none; }
+    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:12; user-select:none; touch-action:none; }
     .frame.hidden{ display:none; }
     .frame-badge{ position:absolute; top:10px; left:10px; background:var(--panel-bg); border:1px solid var(--panel-border); color:var(--app-fg); border-radius:0.75rem; padding:0.35rem 0.7rem; font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; pointer-events:none; }
+    
+    .frame-handle{ position:absolute; background:rgba(255,255,255,0.3); }
+    .frame-handle-n, .frame-handle-s{ left:10px; right:10px; height:8px; cursor:ns-resize; }
+    .frame-handle-e, .frame-handle-w{ top:10px; bottom:10px; width:8px; cursor:ew-resize; }
+    .frame-handle-n{ top:-4px; }
+    .frame-handle-s{ bottom:-4px; }
+    .frame-handle-e{ right:-4px; }
+    .frame-handle-w{ left:-4px; }
+    .frame-handle-ne, .frame-handle-nw, .frame-handle-se, .frame-handle-sw{ width:16px; height:16px; }
+    .frame-handle-ne{ top:-8px; right:-8px; cursor:nesw-resize; }
+    .frame-handle-nw{ top:-8px; left:-8px; cursor:nwse-resize; }
+    .frame-handle-se{ bottom:-8px; right:-8px; cursor:nwse-resize; }
+    .frame-handle-sw{ bottom:-8px; left:-8px; cursor:nesw-resize; }
+    .frame-handle:hover{ background:rgba(255,255,255,0.6); }
 
     @media (max-width:960px){ .control-stack{ top:.75rem; left:.75rem } .chip{ padding:.45rem .75rem } }
 
@@ -173,7 +187,15 @@
   <div id="map"></div>
 
   <div id="frame" class="frame hidden">
-    <div class="frame-badge">Drag to reposition · F toggles visibility</div>
+    <div class="frame-badge">Drag to move · Drag edges/corners to resize · F toggles</div>
+    <div class="frame-handle frame-handle-n"></div>
+    <div class="frame-handle frame-handle-s"></div>
+    <div class="frame-handle frame-handle-e"></div>
+    <div class="frame-handle frame-handle-w"></div>
+    <div class="frame-handle frame-handle-ne"></div>
+    <div class="frame-handle frame-handle-nw"></div>
+    <div class="frame-handle frame-handle-se"></div>
+    <div class="frame-handle frame-handle-sw"></div>
   </div>
 
   <div class="control-stack">
@@ -692,14 +714,56 @@
         if(k === 'escape' && elements.aboutModal && !elements.aboutModal.classList.contains('hidden')){ ev.preventDefault(); closeAbout(); }
       });
 
-      // frame dragging
-      const frameState = { drag: null };
+      // frame dragging and resizing
+      const frameState = { drag: null, resize: null };
       function initFrame(){ const rect = map.getContainer().getBoundingClientRect(); const w = Math.min(Math.floor(rect.width * 0.55), 900); const h = Math.floor(w * 9 / 16); const x = Math.round((rect.width - w)/2); const y = Math.round((rect.height - h)/2); setFrameRect({x,y,w,h}); }
       function setFrameRect(r){ const box=map.getContainer().getBoundingClientRect(); const next = {...r}; next.w = Math.max(60, Math.min(next.w, box.width)); next.h = Math.max(60, Math.min(next.h, box.height)); next.x = Math.max(0, Math.min(next.x, box.width-next.w)); next.y = Math.max(0, Math.min(next.y, box.height-next.h)); elements.frame.style.left = next.x+'px'; elements.frame.style.top = next.y+'px'; elements.frame.style.width = next.w+'px'; elements.frame.style.height = next.h+'px'; }
       function getFrameRect(){ const s=getComputedStyle(elements.frame); return { x: parseInt(s.left,10)||0, y:parseInt(s.top,10)||0, w:parseInt(s.width,10)||0, h:parseInt(s.height,10)||0 }; }
-      elements.frame.addEventListener('pointerdown', e=>{ e.preventDefault(); elements.frame.setPointerCapture(e.pointerId); const rect = getFrameRect(); frameState.drag = { startX:e.clientX, startY:e.clientY, base:rect, id:e.pointerId }; });
-      window.addEventListener('pointermove', e=>{ if(!frameState.drag) return; const dx = e.clientX - frameState.drag.startX; const dy = e.clientY - frameState.drag.startY; setFrameRect({ x: frameState.drag.base.x + dx, y: frameState.drag.base.y + dy, w: frameState.drag.base.w, h: frameState.drag.base.h }); });
-      window.addEventListener('pointerup', e=>{ if(frameState.drag && e.pointerId === frameState.drag.id) frameState.drag = null; });
+      
+      // Handle dragging/resizing
+      elements.frame.addEventListener('pointerdown', e=>{
+        const target = e.target;
+        if(target.classList.contains('frame-handle')){
+          e.preventDefault();
+          e.stopPropagation();
+          elements.frame.setPointerCapture(e.pointerId);
+          const rect = getFrameRect();
+          const handle = target.className.split(' ').find(c => c.startsWith('frame-handle-'));
+          frameState.resize = { startX:e.clientX, startY:e.clientY, base:rect, handle, id:e.pointerId };
+        } else if(target === elements.frame || target.classList.contains('frame-badge')){
+          e.preventDefault();
+          elements.frame.setPointerCapture(e.pointerId);
+          const rect = getFrameRect();
+          frameState.drag = { startX:e.clientX, startY:e.clientY, base:rect, id:e.pointerId };
+        }
+      });
+      
+      window.addEventListener('pointermove', e=>{
+        if(frameState.drag){
+          const dx = e.clientX - frameState.drag.startX;
+          const dy = e.clientY - frameState.drag.startY;
+          setFrameRect({ x: frameState.drag.base.x + dx, y: frameState.drag.base.y + dy, w: frameState.drag.base.w, h: frameState.drag.base.h });
+        } else if(frameState.resize){
+          const dx = e.clientX - frameState.resize.startX;
+          const dy = e.clientY - frameState.resize.startY;
+          const base = frameState.resize.base;
+          const handle = frameState.resize.handle;
+          let newRect = {...base};
+          
+          if(handle.includes('-n')){ newRect.y = base.y + dy; newRect.h = base.h - dy; }
+          if(handle.includes('-s')){ newRect.h = base.h + dy; }
+          if(handle.includes('-w')){ newRect.x = base.x + dx; newRect.w = base.w - dx; }
+          if(handle.includes('-e')){ newRect.w = base.w + dx; }
+          
+          setFrameRect(newRect);
+        }
+      });
+      
+      window.addEventListener('pointerup', e=>{
+        if(frameState.drag && e.pointerId === frameState.drag.id) frameState.drag = null;
+        if(frameState.resize && e.pointerId === frameState.resize.id) frameState.resize = null;
+      });
+      
       window.addEventListener('resize', initFrame);
 
       async function loadSnaps(){
