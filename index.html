@@ -747,8 +747,11 @@
           e.stopPropagation();
           elements.frame.setPointerCapture(e.pointerId);
           const rect = getFrameRect();
-          const handle = target.className.split(' ').find(c => c.startsWith('frame-handle-'));
-          frameState.resize = { startX:e.clientX, startY:e.clientY, base:rect, handle, id:e.pointerId };
+          // Find the specific handle class (like 'frame-handle-ne') and extract the direction part ('ne')
+          const handleClass = target.className.split(' ').find(c => c.startsWith('frame-handle-'));
+          const handleDir = handleClass ? handleClass.substring('frame-handle-'.length) : '';
+          // Store both for debugging, but use handleDir for direction checks to avoid accidental matches
+          frameState.resize = { startX:e.clientX, startY:e.clientY, base:rect, handleClass, handleDir, id:e.pointerId };
         } else if(target === elements.frame || target.classList.contains('frame-badge')){
           e.preventDefault();
           elements.frame.setPointerCapture(e.pointerId);
@@ -766,16 +769,15 @@
           const dx = e.clientX - frameState.resize.startX;
           const dy = e.clientY - frameState.resize.startY;
           const base = frameState.resize.base;
-          const handle = frameState.resize.handle;
+          const dir = frameState.resize.handleDir || '';
           let newRect = {...base};
-          
-          // Check for north/south
-          if(handle.includes('n')){ newRect.y = base.y + dy; newRect.h = base.h - dy; }
-          if(handle.includes('s')){ newRect.h = base.h + dy; }
-          // Check for west/east
-          if(handle.includes('w')){ newRect.x = base.x + dx; newRect.w = base.w - dx; }
-          if(handle.includes('e')){ newRect.w = base.w + dx; }
-          
+
+          // Use the extracted direction (e.g., 'n','ne','sw') so we only match the real direction
+          if(dir.includes('n')){ newRect.y = base.y + dy; newRect.h = base.h - dy; }
+          if(dir.includes('s')){ newRect.h = base.h + dy; }
+          if(dir.includes('w')){ newRect.x = base.x + dx; newRect.w = base.w - dx; }
+          if(dir.includes('e')){ newRect.w = base.w + dx; }
+
           setFrameRect(newRect);
         }
       });
