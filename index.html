@@ -473,7 +473,7 @@
       elements.btnMedina.addEventListener('click', ()=>{ state.currentRegion='Medina'; map.fitBounds(L.latLngBounds([24.3497,39.37],[24.6997,39.979]),{padding:[40,40]}); updateMeta(); });
 
       // Export functionality
-      async function export4K(bounds, filename) {
+      async function export4K(bounds, filename, frameRect = null) {
         console.log('export4K called with:', filename);
         
         if (!state.snaps || state.index === undefined || state.index < 0) {
@@ -489,9 +489,28 @@
 
         elements.exportPanel.classList.add('hidden');
         
-        // Fixed dimensions
-        const targetWidth = 3840;
-        const targetHeight = 2160;
+        // Calculate target dimensions based on frame aspect ratio or default to 4K
+        let targetWidth, targetHeight;
+        if (frameRect && frameRect.w && frameRect.h) {
+          // Use frame's aspect ratio, scale to fit within 4K
+          const frameAspect = frameRect.w / frameRect.h;
+          const max4K = 3840;
+          if (frameAspect >= 1) {
+            // Wider than tall
+            targetWidth = max4K;
+            targetHeight = Math.round(max4K / frameAspect);
+          } else {
+            // Taller than wide
+            targetHeight = max4K;
+            targetWidth = Math.round(max4K * frameAspect);
+          }
+        } else {
+          // Default to 4K 16:9
+          targetWidth = 3840;
+          targetHeight = 2160;
+        }
+        
+        console.log(`Export dimensions: ${targetWidth}x${targetHeight}`);
         
         // Calculate tile coordinates at zoom 11
         const zoom = OVERLAY_ZOOM;
@@ -692,7 +711,7 @@
             map.containerPointToLatLng([rect.x, rect.y + rect.h]),
             map.containerPointToLatLng([rect.x + rect.w, rect.y])
           );
-          export4K(bounds, 'frame_4k');
+          export4K(bounds, 'frame_4k', rect);
         });
       } else {
         console.error('save4kFrame button not found');
@@ -750,10 +769,12 @@
           const handle = frameState.resize.handle;
           let newRect = {...base};
           
-          if(handle.includes('-n')){ newRect.y = base.y + dy; newRect.h = base.h - dy; }
-          if(handle.includes('-s')){ newRect.h = base.h + dy; }
-          if(handle.includes('-w')){ newRect.x = base.x + dx; newRect.w = base.w - dx; }
-          if(handle.includes('-e')){ newRect.w = base.w + dx; }
+          // Check for north/south
+          if(handle.includes('n')){ newRect.y = base.y + dy; newRect.h = base.h - dy; }
+          if(handle.includes('s')){ newRect.h = base.h + dy; }
+          // Check for west/east
+          if(handle.includes('w')){ newRect.x = base.x + dx; newRect.w = base.w - dx; }
+          if(handle.includes('e')){ newRect.w = base.w + dx; }
           
           setFrameRect(newRect);
         }
