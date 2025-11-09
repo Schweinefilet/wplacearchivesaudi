@@ -158,7 +158,7 @@
       60%{ opacity:0.82; transform:scale3d(1.05,1.05,1); }
     }
 
-    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:12; user-select:none; touch-action:none; }
+    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:25; user-select:none; touch-action:none; }
     .frame.hidden{ display:none; }
     .frame-badge{ position:absolute; top:10px; left:10px; background:var(--panel-bg); border:1px solid var(--panel-border); color:var(--app-fg); border-radius:0.75rem; padding:0.35rem 0.7rem; font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; pointer-events:none; }
     
@@ -216,6 +216,7 @@
       <button id="btnMecca" class="chip chip-ghost" type="button">Mecca</button>
       <button id="btnMedina" class="chip chip-ghost" type="button">Medina</button>
       <button id="btnToggleHUD" class="chip chip-ghost" type="button">Toggle HUD (H)</button>
+      <button id="btnToggleBaseMap" class="chip chip-ghost" type="button">Dark Map</button>
     </div>
   </div>
 
@@ -273,7 +274,7 @@
       const OVERLAY_ZOOM = 11;
       const TRANSPARENT_TILE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
       const THEME_KEY = 'wplace-viewer-theme';
-      const state = { snaps: [], index: 0, currentDir: '', currentRegion: 'World', overlay: null, isHudHidden: false };
+      const state = { snaps: [], index: 0, currentDir: '', currentRegion: 'World', overlay: null, isHudHidden: false, baseMap: null, darkBaseMap: null, useDarkMap: false };
 
       const elements = {
         body: document.body,
@@ -288,6 +289,7 @@
         btnMecca: document.getElementById('btnMecca'),
         btnMedina: document.getElementById('btnMedina'),
         btnToggleHUD: document.getElementById('btnToggleHUD'),
+        btnToggleBaseMap: document.getElementById('btnToggleBaseMap'),
         btnTheme: document.getElementById('btnTheme'),
         btnOpenLive: document.getElementById('btnOpenLive'),
         btnExport: document.getElementById('btnExport'),
@@ -386,7 +388,12 @@
         });
       })();
 
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' }).addTo(map);
+      // Create both base map layers
+      state.baseMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' });
+      state.darkBaseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO', subdomains: 'abcd' });
+      
+      // Add default base map
+      state.baseMap.addTo(map);
 
   state.overlay = L.tileLayer(TRANSPARENT_TILE, { tileSize:256, minZoom:7, maxZoom:14, minNativeZoom:OVERLAY_ZOOM, maxNativeZoom:OVERLAY_ZOOM, keepBuffer:6, updateWhenZooming:true, updateWhenIdle:false, errorTileUrl:TRANSPARENT_TILE, crossOrigin:false, noWrap:true }).addTo(map);
 
@@ -465,6 +472,18 @@
   if(elements.timelinePrev) elements.timelinePrev.addEventListener('click', ()=>{ stepSnap(-1); });
   if(elements.timelineNext) elements.timelineNext.addEventListener('click', ()=>{ stepSnap(1); });
       if(elements.btnToggleHUD) elements.btnToggleHUD.addEventListener('click', ()=>{ setHudHidden(!state.isHudHidden); });
+      if(elements.btnToggleBaseMap) elements.btnToggleBaseMap.addEventListener('click', ()=>{
+        state.useDarkMap = !state.useDarkMap;
+        if(state.useDarkMap){
+          map.removeLayer(state.baseMap);
+          state.darkBaseMap.addTo(map);
+          elements.btnToggleBaseMap.textContent = 'Light Map';
+        } else {
+          map.removeLayer(state.darkBaseMap);
+          state.baseMap.addTo(map);
+          elements.btnToggleBaseMap.textContent = 'Dark Map';
+        }
+      });
 
       elements.btnTheme.addEventListener('click', ()=>{ const cur = elements.body.dataset.theme === 'dark' ? 'dark' : 'light'; setTheme(cur === 'dark' ? 'light' : 'dark'); });
       elements.btnOpenLive.addEventListener('click', ()=>{ const c=map.getCenter(); const z=map.getZoom(); window.open(`https://wplace.live/?lat=${c.lat.toFixed(5)}&lng=${c.lng.toFixed(5)}&zoom=${Math.max(z,10.61).toFixed(2)}`,'_blank'); });
@@ -772,11 +791,25 @@
           const dir = frameState.resize.handleDir || '';
           let newRect = {...base};
 
-          // Use the extracted direction (e.g., 'n','ne','sw') so we only match the real direction
-          if(dir.includes('n')){ newRect.y = base.y + dy; newRect.h = base.h - dy; }
-          if(dir.includes('s')){ newRect.h = base.h + dy; }
-          if(dir.includes('w')){ newRect.x = base.x + dx; newRect.w = base.w - dx; }
-          if(dir.includes('e')){ newRect.w = base.w + dx; }
+          // Use the extracted direction (e.g., 'n','ne','sw','e','w','s')
+          // Check for north component (top edge moving)
+          if(dir === 'n' || dir === 'ne' || dir === 'nw'){ 
+            newRect.y = base.y + dy; 
+            newRect.h = base.h - dy; 
+          }
+          // Check for south component (bottom edge moving)
+          if(dir === 's' || dir === 'se' || dir === 'sw'){ 
+            newRect.h = base.h + dy; 
+          }
+          // Check for west component (left edge moving)
+          if(dir === 'w' || dir === 'nw' || dir === 'sw'){ 
+            newRect.x = base.x + dx; 
+            newRect.w = base.w - dx; 
+          }
+          // Check for east component (right edge moving)
+          if(dir === 'e' || dir === 'ne' || dir === 'se'){ 
+            newRect.w = base.w + dx; 
+          }
 
           setFrameRect(newRect);
         }
