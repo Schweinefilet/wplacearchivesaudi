@@ -477,10 +477,18 @@
         if(state.useDarkMap){
           map.removeLayer(state.baseMap);
           state.darkBaseMap.addTo(map);
+          // Ensure overlay stays on top
+          if(state.overlay && map.hasLayer(state.overlay)){
+            state.overlay.bringToFront();
+          }
           elements.btnToggleBaseMap.textContent = 'Light Map';
         } else {
           map.removeLayer(state.darkBaseMap);
           state.baseMap.addTo(map);
+          // Ensure overlay stays on top
+          if(state.overlay && map.hasLayer(state.overlay)){
+            state.overlay.bringToFront();
+          }
           elements.btnToggleBaseMap.textContent = 'Dark Map';
         }
       });
@@ -592,9 +600,14 @@
         // Load and render base map tiles
         console.log('Loading base map tiles...');
         const baseMapPromises = [];
+        // Use the currently active base map (dark or light)
+        const baseMapUrl = state.useDarkMap 
+          ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        
         for (let x = minTileX; x <= maxTileX; x++) {
           for (let y = minTileY; y <= maxTileY; y++) {
-            const tileUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+            const tileUrl = baseMapUrl.replace('{z}', zoom).replace('{x}', x).replace('{y}', y);
             baseMapPromises.push(
               new Promise((resolve) => {
                 const img = new Image();
