@@ -158,9 +158,23 @@
       60%{ opacity:0.82; transform:scale3d(1.05,1.05,1); }
     }
 
-    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:12; cursor:move; user-select:none; touch-action:none; }
+    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:25; user-select:none; touch-action:none; }
     .frame.hidden{ display:none; }
     .frame-badge{ position:absolute; top:10px; left:10px; background:var(--panel-bg); border:1px solid var(--panel-border); color:var(--app-fg); border-radius:0.75rem; padding:0.35rem 0.7rem; font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; pointer-events:none; }
+    
+    .frame-handle{ position:absolute; background:rgba(255,255,255,0.3); }
+    .frame-handle-n, .frame-handle-s{ left:10px; right:10px; height:8px; cursor:ns-resize; }
+    .frame-handle-e, .frame-handle-w{ top:10px; bottom:10px; width:8px; cursor:ew-resize; }
+    .frame-handle-n{ top:-4px; }
+    .frame-handle-s{ bottom:-4px; }
+    .frame-handle-e{ right:-4px; }
+    .frame-handle-w{ left:-4px; }
+    .frame-handle-ne, .frame-handle-nw, .frame-handle-se, .frame-handle-sw{ width:16px; height:16px; }
+    .frame-handle-ne{ top:-8px; right:-8px; cursor:nesw-resize; }
+    .frame-handle-nw{ top:-8px; left:-8px; cursor:nwse-resize; }
+    .frame-handle-se{ bottom:-8px; right:-8px; cursor:nwse-resize; }
+    .frame-handle-sw{ bottom:-8px; left:-8px; cursor:nesw-resize; }
+    .frame-handle:hover{ background:rgba(255,255,255,0.6); }
 
     @media (max-width:960px){ .control-stack{ top:.75rem; left:.75rem } .chip{ padding:.45rem .75rem } }
 
@@ -173,7 +187,15 @@
   <div id="map"></div>
 
   <div id="frame" class="frame hidden">
-    <div class="frame-badge">Drag to reposition · F toggles visibility</div>
+    <div class="frame-badge">Drag to move · Drag edges/corners to resize · F toggles</div>
+    <div class="frame-handle frame-handle-n"></div>
+    <div class="frame-handle frame-handle-s"></div>
+    <div class="frame-handle frame-handle-e"></div>
+    <div class="frame-handle frame-handle-w"></div>
+    <div class="frame-handle frame-handle-ne"></div>
+    <div class="frame-handle frame-handle-nw"></div>
+    <div class="frame-handle frame-handle-se"></div>
+    <div class="frame-handle frame-handle-sw"></div>
   </div>
 
   <div class="control-stack">
@@ -194,6 +216,7 @@
       <button id="btnMecca" class="chip chip-ghost" type="button">Mecca</button>
       <button id="btnMedina" class="chip chip-ghost" type="button">Medina</button>
       <button id="btnToggleHUD" class="chip chip-ghost" type="button">Toggle HUD (H)</button>
+      <button id="btnToggleBaseMap" class="chip chip-ghost" type="button">Dark Map</button>
     </div>
   </div>
 
@@ -251,7 +274,7 @@
       const OVERLAY_ZOOM = 11;
       const TRANSPARENT_TILE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
       const THEME_KEY = 'wplace-viewer-theme';
-      const state = { snaps: [], index: 0, currentDir: '', currentRegion: 'World', overlay: null, isHudHidden: false };
+      const state = { snaps: [], index: 0, currentDir: '', currentRegion: 'World', overlay: null, isHudHidden: false, baseMap: null, darkBaseMap: null, useDarkMap: false };
 
       const elements = {
         body: document.body,
@@ -266,6 +289,7 @@
         btnMecca: document.getElementById('btnMecca'),
         btnMedina: document.getElementById('btnMedina'),
         btnToggleHUD: document.getElementById('btnToggleHUD'),
+        btnToggleBaseMap: document.getElementById('btnToggleBaseMap'),
         btnTheme: document.getElementById('btnTheme'),
         btnOpenLive: document.getElementById('btnOpenLive'),
         btnExport: document.getElementById('btnExport'),
@@ -364,7 +388,12 @@
         });
       })();
 
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' }).addTo(map);
+      // Create both base map layers
+      state.baseMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' });
+      state.darkBaseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO', subdomains: 'abcd' });
+      
+      // Add default base map
+      state.baseMap.addTo(map);
 
   state.overlay = L.tileLayer(TRANSPARENT_TILE, { tileSize:256, minZoom:7, maxZoom:14, minNativeZoom:OVERLAY_ZOOM, maxNativeZoom:OVERLAY_ZOOM, keepBuffer:6, updateWhenZooming:true, updateWhenIdle:false, errorTileUrl:TRANSPARENT_TILE, crossOrigin:false, noWrap:true }).addTo(map);
 
@@ -443,6 +472,26 @@
   if(elements.timelinePrev) elements.timelinePrev.addEventListener('click', ()=>{ stepSnap(-1); });
   if(elements.timelineNext) elements.timelineNext.addEventListener('click', ()=>{ stepSnap(1); });
       if(elements.btnToggleHUD) elements.btnToggleHUD.addEventListener('click', ()=>{ setHudHidden(!state.isHudHidden); });
+      if(elements.btnToggleBaseMap) elements.btnToggleBaseMap.addEventListener('click', ()=>{
+        state.useDarkMap = !state.useDarkMap;
+        if(state.useDarkMap){
+          map.removeLayer(state.baseMap);
+          state.darkBaseMap.addTo(map);
+          // Ensure overlay stays on top
+          if(state.overlay && map.hasLayer(state.overlay)){
+            state.overlay.bringToFront();
+          }
+          elements.btnToggleBaseMap.textContent = 'Light Map';
+        } else {
+          map.removeLayer(state.darkBaseMap);
+          state.baseMap.addTo(map);
+          // Ensure overlay stays on top
+          if(state.overlay && map.hasLayer(state.overlay)){
+            state.overlay.bringToFront();
+          }
+          elements.btnToggleBaseMap.textContent = 'Dark Map';
+        }
+      });
 
       elements.btnTheme.addEventListener('click', ()=>{ const cur = elements.body.dataset.theme === 'dark' ? 'dark' : 'light'; setTheme(cur === 'dark' ? 'light' : 'dark'); });
       elements.btnOpenLive.addEventListener('click', ()=>{ const c=map.getCenter(); const z=map.getZoom(); window.open(`https://wplace.live/?lat=${c.lat.toFixed(5)}&lng=${c.lng.toFixed(5)}&zoom=${Math.max(z,10.61).toFixed(2)}`,'_blank'); });
@@ -451,7 +500,7 @@
       elements.btnMedina.addEventListener('click', ()=>{ state.currentRegion='Medina'; map.fitBounds(L.latLngBounds([24.3497,39.37],[24.6997,39.979]),{padding:[40,40]}); updateMeta(); });
 
       // Export functionality
-      async function export4K(bounds, filename) {
+      async function export4K(bounds, filename, frameRect = null) {
         console.log('export4K called with:', filename);
         
         if (!state.snaps || state.index === undefined || state.index < 0) {
@@ -467,9 +516,28 @@
 
         elements.exportPanel.classList.add('hidden');
         
-        // Fixed dimensions
-        const targetWidth = 3840;
-        const targetHeight = 2160;
+        // Calculate target dimensions based on frame aspect ratio or default to 4K
+        let targetWidth, targetHeight;
+        if (frameRect && frameRect.w && frameRect.h) {
+          // Use frame's aspect ratio, scale to fit within 4K
+          const frameAspect = frameRect.w / frameRect.h;
+          const max4K = 3840;
+          if (frameAspect >= 1) {
+            // Wider than tall
+            targetWidth = max4K;
+            targetHeight = Math.round(max4K / frameAspect);
+          } else {
+            // Taller than wide
+            targetHeight = max4K;
+            targetWidth = Math.round(max4K * frameAspect);
+          }
+        } else {
+          // Default to 4K 16:9
+          targetWidth = 3840;
+          targetHeight = 2160;
+        }
+        
+        console.log(`Export dimensions: ${targetWidth}x${targetHeight}`);
         
         // Calculate tile coordinates at zoom 11
         const zoom = OVERLAY_ZOOM;
@@ -532,9 +600,14 @@
         // Load and render base map tiles
         console.log('Loading base map tiles...');
         const baseMapPromises = [];
+        // Use the currently active base map (dark or light)
+        const baseMapUrl = state.useDarkMap 
+          ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        
         for (let x = minTileX; x <= maxTileX; x++) {
           for (let y = minTileY; y <= maxTileY; y++) {
-            const tileUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+            const tileUrl = baseMapUrl.replace('{z}', zoom).replace('{x}', x).replace('{y}', y);
             baseMapPromises.push(
               new Promise((resolve) => {
                 const img = new Image();
@@ -593,20 +666,41 @@
         await Promise.all(overlayPromises);
         console.log('Overlay loaded');
 
-        // Add watermark
-        const watermarkText = 'wplacearchive.schweinefilet.eu.org';
-        const watermarkFontSize = 24;
+        // Add date label with background
+        const dateText = snap.label;
+        const dateFontSize = 48;
+        ctx.font = `bold ${dateFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        
+        const dateMetrics = ctx.measureText(dateText);
+        const datePadding = 15;
+        const dateX = 30;
+        const dateY = 60;
+        
+        // Draw dark background for date
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(dateX - datePadding, dateY - dateFontSize - datePadding/2, dateMetrics.width + datePadding * 2, dateFontSize + datePadding * 1.5);
+        
+        // Draw date text
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(dateText, dateX, dateY);
+
+        // Add watermark with background
+        const watermarkText = 'https://schweinefilet.github.io/wplacearchivesaudi/';
+        const watermarkFontSize = 32;
         ctx.font = `${watermarkFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.lineWidth = 3;
         
-        const textMetrics = ctx.measureText(watermarkText);
-        const textX = targetWidth - textMetrics.width - 20;
-        const textY = targetHeight - 20;
+        const watermarkMetrics = ctx.measureText(watermarkText);
+        const watermarkPadding = 12;
+        const watermarkX = targetWidth - watermarkMetrics.width - 30;
+        const watermarkY = targetHeight - 30;
         
-        ctx.strokeText(watermarkText, textX, textY);
-        ctx.fillText(watermarkText, textX, textY);
+        // Draw dark background for watermark
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(watermarkX - watermarkPadding, watermarkY - watermarkFontSize - watermarkPadding/2, watermarkMetrics.width + watermarkPadding * 2, watermarkFontSize + watermarkPadding * 1.5);
+        
+        // Draw watermark text
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(watermarkText, watermarkX, watermarkY);
 
         // Download
         canvas.toBlob((blob) => {
@@ -649,7 +743,7 @@
             map.containerPointToLatLng([rect.x, rect.y + rect.h]),
             map.containerPointToLatLng([rect.x + rect.w, rect.y])
           );
-          export4K(bounds, 'frame_4k');
+          export4K(bounds, 'frame_4k', rect);
         });
       } else {
         console.error('save4kFrame button not found');
@@ -671,14 +765,74 @@
         if(k === 'escape' && elements.aboutModal && !elements.aboutModal.classList.contains('hidden')){ ev.preventDefault(); closeAbout(); }
       });
 
-      // frame dragging
-      const frameState = { drag: null };
+      // frame dragging and resizing
+      const frameState = { drag: null, resize: null };
       function initFrame(){ const rect = map.getContainer().getBoundingClientRect(); const w = Math.min(Math.floor(rect.width * 0.55), 900); const h = Math.floor(w * 9 / 16); const x = Math.round((rect.width - w)/2); const y = Math.round((rect.height - h)/2); setFrameRect({x,y,w,h}); }
       function setFrameRect(r){ const box=map.getContainer().getBoundingClientRect(); const next = {...r}; next.w = Math.max(60, Math.min(next.w, box.width)); next.h = Math.max(60, Math.min(next.h, box.height)); next.x = Math.max(0, Math.min(next.x, box.width-next.w)); next.y = Math.max(0, Math.min(next.y, box.height-next.h)); elements.frame.style.left = next.x+'px'; elements.frame.style.top = next.y+'px'; elements.frame.style.width = next.w+'px'; elements.frame.style.height = next.h+'px'; }
       function getFrameRect(){ const s=getComputedStyle(elements.frame); return { x: parseInt(s.left,10)||0, y:parseInt(s.top,10)||0, w:parseInt(s.width,10)||0, h:parseInt(s.height,10)||0 }; }
-      elements.frame.addEventListener('pointerdown', e=>{ e.preventDefault(); elements.frame.setPointerCapture(e.pointerId); const rect = getFrameRect(); frameState.drag = { startX:e.clientX, startY:e.clientY, base:rect, id:e.pointerId }; });
-      window.addEventListener('pointermove', e=>{ if(!frameState.drag) return; const dx = e.clientX - frameState.drag.startX; const dy = e.clientY - frameState.drag.startY; setFrameRect({ x: frameState.drag.base.x + dx, y: frameState.drag.base.y + dy, w: frameState.drag.base.w, h: frameState.drag.base.h }); });
-      window.addEventListener('pointerup', e=>{ if(frameState.drag && e.pointerId === frameState.drag.id) frameState.drag = null; });
+      
+      // Handle dragging/resizing
+      elements.frame.addEventListener('pointerdown', e=>{
+        const target = e.target;
+        if(target.classList.contains('frame-handle')){
+          e.preventDefault();
+          e.stopPropagation();
+          elements.frame.setPointerCapture(e.pointerId);
+          const rect = getFrameRect();
+          // Find the specific handle class (like 'frame-handle-ne') and extract the direction part ('ne')
+          const handleClass = target.className.split(' ').find(c => c.startsWith('frame-handle-'));
+          const handleDir = handleClass ? handleClass.substring('frame-handle-'.length) : '';
+          // Store both for debugging, but use handleDir for direction checks to avoid accidental matches
+          frameState.resize = { startX:e.clientX, startY:e.clientY, base:rect, handleClass, handleDir, id:e.pointerId };
+        } else if(target === elements.frame || target.classList.contains('frame-badge')){
+          e.preventDefault();
+          elements.frame.setPointerCapture(e.pointerId);
+          const rect = getFrameRect();
+          frameState.drag = { startX:e.clientX, startY:e.clientY, base:rect, id:e.pointerId };
+        }
+      });
+      
+      window.addEventListener('pointermove', e=>{
+        if(frameState.drag){
+          const dx = e.clientX - frameState.drag.startX;
+          const dy = e.clientY - frameState.drag.startY;
+          setFrameRect({ x: frameState.drag.base.x + dx, y: frameState.drag.base.y + dy, w: frameState.drag.base.w, h: frameState.drag.base.h });
+        } else if(frameState.resize){
+          const dx = e.clientX - frameState.resize.startX;
+          const dy = e.clientY - frameState.resize.startY;
+          const base = frameState.resize.base;
+          const dir = frameState.resize.handleDir || '';
+          let newRect = {...base};
+
+          // Use the extracted direction (e.g., 'n','ne','sw','e','w','s')
+          // Check for north component (top edge moving)
+          if(dir === 'n' || dir === 'ne' || dir === 'nw'){ 
+            newRect.y = base.y + dy; 
+            newRect.h = base.h - dy; 
+          }
+          // Check for south component (bottom edge moving)
+          if(dir === 's' || dir === 'se' || dir === 'sw'){ 
+            newRect.h = base.h + dy; 
+          }
+          // Check for west component (left edge moving)
+          if(dir === 'w' || dir === 'nw' || dir === 'sw'){ 
+            newRect.x = base.x + dx; 
+            newRect.w = base.w - dx; 
+          }
+          // Check for east component (right edge moving)
+          if(dir === 'e' || dir === 'ne' || dir === 'se'){ 
+            newRect.w = base.w + dx; 
+          }
+
+          setFrameRect(newRect);
+        }
+      });
+      
+      window.addEventListener('pointerup', e=>{
+        if(frameState.drag && e.pointerId === frameState.drag.id) frameState.drag = null;
+        if(frameState.resize && e.pointerId === frameState.resize.id) frameState.resize = null;
+      });
+      
       window.addEventListener('resize', initFrame);
 
       async function loadSnaps(){
