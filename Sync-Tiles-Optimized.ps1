@@ -7,10 +7,10 @@ param(
   [string]$TempDir     = "/tmp/wplace-archive",
   [datetime]$StartDate = (Get-Date -Year 2025 -Month 8 -Day 8).Date,  # first available date
   [datetime]$EndDate   = (Get-Date).Date,
-  [int]$XMin = 1243,
-  [int]$XMax = 1253,
-  [int]$YMin = 875,
-  [int]$YMax = 904,
+  [int]$XMin = 1245,
+  [int]$XMax = 1254,
+  [int]$YMin = 879,
+  [int]$YMax = 903,
   [int]$ParallelJobs = 2  # limit disk usage
 )
 
@@ -22,6 +22,39 @@ function LogSuccess([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:
 function LogWarn([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Yellow }
 function LogError([string]$m){ Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $m" -ForegroundColor Red }
 function EnsureDir([string]$p){ if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+
+function PruneExistingTiles {
+  param([string]$TilesRoot, [int]$XMin, [int]$XMax, [int]$YMin, [int]$YMax)
+  $dateDirs = Get-ChildItem -Path $TilesRoot -Directory -Filter "tiles_*" -ErrorAction SilentlyContinue
+  if ($dateDirs.Count -eq 0) { return }
+  Log "Pruning tiles outside X=$XMin-$XMax and Y=$YMin-$YMax"
+  foreach ($dateDir in $dateDirs) {
+    $removedDirs = 0
+    $removedFiles = 0
+    $xDirs = Get-ChildItem -Path $dateDir.FullName -Directory -ErrorAction SilentlyContinue
+    foreach ($xDir in $xDirs) {
+      if ($xDir.Name -notmatch '^\d+$') { continue }
+      $xValue = [int]$xDir.Name
+      if ($xValue -lt $XMin -or $xValue -gt $XMax) {
+        Remove-Item -LiteralPath $xDir.FullName -Force -Recurse -ErrorAction SilentlyContinue
+        $removedDirs++
+        continue
+      }
+      $pngs = Get-ChildItem -Path $xDir.FullName -File -Filter "*.png" -ErrorAction SilentlyContinue
+      foreach ($png in $pngs) {
+        if ($png.BaseName -notmatch '^\d+$') { continue }
+        $yValue = [int]$png.BaseName
+        if ($yValue -lt $YMin -or $yValue -gt $YMax) {
+          Remove-Item -LiteralPath $png.FullName -Force -ErrorAction SilentlyContinue
+          $removedFiles++
+        }
+      }
+    }
+    if ($removedDirs -gt 0 -or $removedFiles -gt 0) {
+      Log "  [$($dateDir.Name)] removed $removedDirs folders and $removedFiles files outside range"
+    }
+  }
+}
 
 function UpdateSnapsJson {
   param([string]$TilesRoot, [string]$SnapsJsonPath = "snaps.json")
@@ -70,6 +103,8 @@ if ($token) { Log "Using GITHUB_TOKEN for API access" } else { LogWarn "No GITHU
 
 EnsureDir $TilesRoot
 EnsureDir $TempDir
+
+PruneExistingTiles -TilesRoot $TilesRoot -XMin $XMin -XMax $XMax -YMin $YMin -YMax $YMax
 
 Log "Region: X=$XMin-$XMax, Y=$YMin-$YMax (Mecca/Medina/Taif)"
 
