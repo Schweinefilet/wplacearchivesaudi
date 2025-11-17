@@ -1,0 +1,64 @@
+**********************
+PowerShell transcript start
+Start time: 20251115230005
+Username: LAPTOP-DHVBS0TN\pc
+RunAs User: LAPTOP-DHVBS0TN\pc
+Configuration Name: 
+Machine: LAPTOP-DHVBS0TN (Microsoft Windows NT 10.0.22631.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll -NoProfile -ExecutionPolicy Bypass -File E:\wplace-site\Run-Sync.ps1
+Process ID: 10880
+PSVersion: 7.5.4
+PSEdition: Core
+GitCommitId: 7.5.4
+OS: Microsoft Windows 10.0.22631
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+Transcript started, output file is E:\wplace-site\logs\Sync-2025-11-15_23-00-05.log
+PSVersion: 7.5.4
+User: LAPTOP-DHVBS0TN\pc
+PWD before: C:\Windows\System32
+PATH: C:\Program Files\PowerShell\7;C:\Python313\Scripts\;C:\Python313\;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\libnvvp;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\libnvvp;C:\Program Files\RevvitySignalsSoftware\ChemDrawApplications\ChemScript\Lib;C:\Program Files (x86)\Razer\ChromaBroadcast\bin;C:\Program Files\Razer\ChromaBroadcast\bin;C:\Program Files (x86)\Razer Chroma SDK\bin;C:\Program Files\Razer Chroma SDK\bin;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Windows\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git LFS;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Program Files\NVIDIA Corporation\Nsight Compute 2022.3.0\;C:\ProgramData\chocolatey\bin;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\GitHub CLI\;C:\Program Files\PowerShell\7\;C:\Users\pc\AppData\Local\Programs\Python\Python39\Scripts\;C:\Users\pc\AppData\Local\Programs\Python\Python39\;C:\Users\pc\AppData\Local\Programs\Python\Python37\Scripts\;C:\Users\pc\AppData\Local\Programs\Python\Python37\;C:\Users\pc\AppData\Local\Programs\Python\Python312\Scripts\;C:\Users\pc\AppData\Local\Programs\Python\Python312\;C:\Users\pc\AppData\Local\Microsoft\WindowsApps;C:\Users\pc\AppData\Local\spicetify;C:\Users\pc\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\pc\.dotnet\tools;C:\Users\pc\ffmpeg\bin;C:\Users\pc\AppData\Roaming\npm;C:\Users\pc\.bun\bin;C:\Users\pc\AppData\Local\GitHubDesktop\bin
+[23:00:05] Using tar for streaming extraction
+[23:00:05] Using GITHUB_TOKEN for API access
+[23:00:05] Region: X=1243-1253, Y=875-904 (Mecca/Medina/Taif)
+
+=========================================
+  Tile Sync - Space-Optimized Version
+=========================================
+[23:00:12] Checking 2025-11-15 for a snapshot past 21:00
+[23:00:15] Found 17 dates needing work
+[23:00:15] Max parallel jobs: 2
+
+[23:00:15] [2025-08-11] Downloading all X folders (1243-1253)
+[23:00:15] [2025-08-08] Downloading all X folders (1243-1253)
+[23:00:20] [2025-08-12] Downloading all X folders (1243-1253)
+[23:00:20] [2025-08-13] Downloading all X folders (1243-1253)
+[23:00:25] [2025-08-14] Downloading all X folders (1243-1253)
+[23:00:26] [2025-08-15] Downloading all X folders (1243-1253)
+[23:00:30] [2025-08-16] Downloading all X folders (1243-1253)
+[23:00:31] [2025-08-17] Downloading all X folders (1243-1253)
+[23:00:35] [2025-08-18] Downloading all X folders (1243-1253)
+[23:00:37] [2025-08-19] Downloading all X folders (1243-1253)
+[23:00:40] [2025-08-20] Downloading all X folders (1243-1253)
+[23:00:41] [2025-08-21] Downloading all X folders (1243-1253)
+[23:00:45] [2025-11-11] Downloading all X folders (1243-1253)
+[23:00:46] [2025-11-12] Downloading all X folders (1243-1253)
+[23:00:50]   Found: world-2025-11-11T22-15-40.694Z
+[23:00:50]   Joining 5 parts...
+>> TerminatingError(): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Exception calling "OpenWrite" with "1" argument(s): "Could not find a part of the path 'C:\tmp\wplace-archive\work_2025-11-11\2025-11-11T22-15-40.694Z+3h9m.tar.gz'.""
+>> TerminatingError(): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Exception calling "OpenWrite" with "1" argument(s): "Could not find a part of the path 'C:\tmp\wplace-archive\work_2025-11-11\2025-11-11T22-15-40.694Z+3h9m.tar.gz'.""
+>> TerminatingError(): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Exception calling "OpenWrite" with "1" argument(s): "Could not find a part of the path 'C:\tmp\wplace-archive\work_2025-11-11\2025-11-11T22-15-40.694Z+3h9m.tar.gz'.""
+The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Exception calling "OpenWrite" with "1" argument(s): "Could not find a part of the path 'C:\tmp\wplace-archive\work_2025-11-11\2025-11-11T22-15-40.694Z+3h9m.tar.gz'."
+MethodInvocationException: 
+Line |
+ 142 |          $outStream = [System.IO.File]::OpenWrite($archiveFile)
+     |          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Exception calling "OpenWrite" with "1" argument(s): "Could not find a part of the path 'C:\tmp\wplace-archive\work_2025-11-11\2025-11-11T22-15-40.694Z+3h9m.tar.gz'."
+**********************
+PowerShell transcript end
+End time: 20251115230051
+**********************
