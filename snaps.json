@@ -370,5 +370,33 @@
   {
     "dir": "tiles/tiles_2025-11-20",
     "label": "2025-11-20"
+  },
+  {
+    "dir": "tiles/tiles_2025-11-21",
+    "label": "2025-11-21"
+  },
+  {
+    "dir": "tiles/tiles_2025-11-22",
+    "label": "2025-11-22"
+  },
+  {
+    "dir": "tiles/tiles_2025-11-23",
+    "label": "2025-11-23"
+  },
+  {
+    "dir": "tiles/tiles_2025-11-24",
+    "label": "2025-11-24"
+  },
+  {
+    "dir": "tiles/tiles_2025-11-25",
+    "label": "2025-11-25"
+  },
+  {
+    "dir": "tiles/tiles_2025-11-26",
+    "label": "2025-11-26"
+  },
+  {
+    "dir": "tiles/tiles_2025-11-27",
+    "label": "2025-11-27"
   }
 ]
