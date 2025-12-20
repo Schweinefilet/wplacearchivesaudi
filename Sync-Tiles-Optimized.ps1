@@ -261,6 +261,18 @@ if (-not $releases) { exit 1 }
 $available = GetAvailableReleaseDates -Releases $releases
 $committed = GetCommittedDates
 
+Log "Cleanup..."
+$local = Get-ChildItem -Path $TilesRoot -Directory -Filter "tiles_*" -ErrorAction SilentlyContinue
+foreach ($dir in $local) {
+  if ($dir.Name -match '^tiles_(\d{4}-\d{2}-\d{2})$') {
+    $ds = $Matches[1]
+    if ($ds -in $committed) {
+      DeleteLocalTiles -DateStr $ds -TilesRoot $TilesRoot -WhatIf:$WhatIf
+    }
+  }
+}
+UpdateSnapsJson -TilesRoot $TilesRoot
+
 $needed = @($available.Keys | Where-Object { $_ -notin $committed } | Sort-Object)
 
 if ($needed.Count -gt 0) {
@@ -277,19 +289,6 @@ else {
   LogSuccess "Up to date"
 }
 
-Log "Cleanup..."
-$committed = GetCommittedDates
-$local = Get-ChildItem -Path $TilesRoot -Directory -Filter "tiles_*" -ErrorAction SilentlyContinue
-foreach ($dir in $local) {
-  if ($dir.Name -match '^tiles_(\d{4}-\d{2}-\d{2})$') {
-    $ds = $Matches[1]
-    if ($ds -in $committed) {
-      DeleteLocalTiles -DateStr $ds -TilesRoot $TilesRoot -WhatIf:$WhatIf
-    }
-  }
-}
-
-UpdateSnapsJson -TilesRoot $TilesRoot
 LogSuccess "Done"
 
 #endregion
