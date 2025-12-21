@@ -1,10 +1,12 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>WPlace Archive Viewer</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     :root {
@@ -12,61 +14,98 @@
       --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       --app-bg: #111827;
       --app-fg: #f9fafb;
-      --panel-bg: rgba(17,24,39,0.78);
-      --panel-border: rgba(148,163,184,0.25);
-      --panel-hover: rgba(30,41,59,0.9);
+      --panel-bg: rgba(17, 24, 39, 0.78);
+      --panel-border: rgba(148, 163, 184, 0.25);
+      --panel-hover: rgba(30, 41, 59, 0.9);
       --accent: #6366f1;
-      --accent-soft: rgba(99,102,241,0.18);
-      --shadow: 0 10px 40px rgba(15,23,42,0.35);
-      --timeline-track: rgba(148,163,184,0.35);
-      --timeline-item: rgba(148,163,184,0.45);
+      --accent-soft: rgba(99, 102, 241, 0.18);
+      --shadow: 0 10px 40px rgba(15, 23, 42, 0.35);
+      --timeline-track: rgba(148, 163, 184, 0.35);
+      --timeline-item: rgba(148, 163, 184, 0.45);
       --timeline-item-active: #ffffff;
-      --timeline-label: rgba(226,232,240,0.75);
-  --modal-bg: rgba(17,24,39,0.86);
-      --modal-surface: rgba(15,23,42,0.95);
-      --scrollbar: rgba(148,163,184,0.25);
+      --timeline-label: rgba(226, 232, 240, 0.75);
+      --modal-bg: rgba(17, 24, 39, 0.86);
+      --modal-surface: rgba(15, 23, 42, 0.95);
+      --scrollbar: rgba(148, 163, 184, 0.25);
     }
 
     [data-theme="light"] {
       color-scheme: light;
       --app-bg: #f8fafc;
       --app-fg: #1e293b;
-      --panel-bg: rgba(255,255,255,0.92);
-      --panel-border: rgba(100,116,139,0.2);
-      --panel-hover: rgba(226,232,240,0.95);
+      --panel-bg: rgba(255, 255, 255, 0.92);
+      --panel-border: rgba(100, 116, 139, 0.2);
+      --panel-hover: rgba(226, 232, 240, 0.95);
       --accent: #4338ca;
-      --accent-soft: rgba(79,70,229,0.15);
-      --shadow: 0 10px 30px rgba(15,23,42,0.15);
-      --timeline-track: rgba(148,163,184,0.35);
-      --timeline-item: rgba(148,163,184,0.55);
+      --accent-soft: rgba(79, 70, 229, 0.15);
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+      --timeline-track: rgba(148, 163, 184, 0.35);
+      --timeline-item: rgba(148, 163, 184, 0.55);
       --timeline-item-active: #1e293b;
-      --timeline-label: rgba(30,41,59,0.75);
-  --modal-bg: rgba(15,23,42,0.62);
-      --modal-surface: rgba(255,255,255,0.95);
-      --scrollbar: rgba(148,163,184,0.4);
+      --timeline-label: rgba(30, 41, 59, 0.75);
+      --modal-bg: rgba(15, 23, 42, 0.62);
+      --modal-surface: rgba(255, 255, 255, 0.95);
+      --scrollbar: rgba(148, 163, 184, 0.4);
     }
 
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body { height: 100%; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html,
     body {
-      margin: 0; font-family: var(--font-sans); background: var(--app-bg); color: var(--app-fg);
-      position: relative; overflow: hidden;
+      height: 100%;
     }
 
-    button { font-family: inherit; font-size: 0.95rem; border: none; }
-    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--app-bg);
+      color: var(--app-fg);
+      position: relative;
+      overflow: hidden;
+    }
 
-    .hidden { display: none !important; }
+    button {
+      font-family: inherit;
+      font-size: 0.95rem;
+      border: none;
+    }
 
-    #map { position: absolute; inset: 0; z-index: 0; }
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
 
     /* Leaflet tweaks to avoid seams and keep tiles sharp */
-    .leaflet-container { font: inherit; }
-    .leaflet-control-container { display: none; }
-    .leaflet-tile-container { transform: translate3d(0,0,0); }
-    .leaflet-tile, .leaflet-tile-container img {
-      margin: -1px!important;
-      max-width: none!important;
+    .leaflet-container {
+      font: inherit;
+    }
+
+    .leaflet-control-container {
+      display: none;
+    }
+
+    .leaflet-tile-container {
+      transform: translate3d(0, 0, 0);
+    }
+
+    .leaflet-tile,
+    .leaflet-tile-container img {
+      margin: -1px !important;
+      max-width: none !important;
       backface-visibility: hidden;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
@@ -84,7 +123,9 @@
       transition: opacity 0.2s ease, transform 0.2s ease;
     }
 
-    body.hud-hidden #frame { display: none; }
+    body.hud-hidden #frame {
+      display: none;
+    }
 
     .control-stack,
     .control-stack.right,
@@ -94,95 +135,683 @@
     }
 
     /* Minimal UI styling inspired by reference site */
-  .control-stack { position: absolute; top: 1rem; left: 1rem; z-index: 20; display:flex; flex-direction:column; gap:0.75rem; pointer-events: none; }
-    .control-row { display:flex; gap:0.5rem; align-items:center; pointer-events:auto; }
-    .chip { appearance:none; border:1px solid var(--panel-border); background:var(--panel-bg); color:var(--app-fg); border-radius:999px; padding:0.5rem 0.9rem; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.25); transition:background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease; }
-  .chip-ghost { background:var(--panel-bg); box-shadow:0 4px 16px rgba(0,0,0,0.2); }
-    .chip:hover, .chip-ghost:hover { background:var(--panel-hover); transform:translateY(-1px); }
-    .chip:disabled { cursor:not-allowed; opacity:0.45; transform:none; box-shadow:none; }
-    .meta-pill { display:inline-flex; gap:0.5rem; align-items:center; padding:0.5rem 0.9rem; border-radius:999px; background:var(--panel-bg); border:1px solid var(--panel-border); font-weight:600; box-shadow:0 4px 18px rgba(0,0,0,0.2); }
-
-  .menu { position:relative; }
-  .menu-panel { position:absolute; right:0; top:100%; margin-top:0.5rem; padding:0.75rem; border-radius:1rem; background:var(--panel-bg); border:1px solid var(--panel-border); box-shadow:var(--shadow); display:flex; flex-direction:column; gap:0.5rem; min-width:12rem; backdrop-filter:blur(14px); }
-    .menu-panel button { background:var(--panel-hover); border:1px solid transparent; color:var(--app-fg); border-radius:0.75rem; padding:0.6rem 0.9rem; font-weight:600; cursor:pointer; transition:background 0.18s ease, border-color 0.18s ease; }
-    .menu-panel button:hover, .menu-panel button:focus-visible { background:var(--accent-soft); border-color:var(--accent); }
-
-  .bottom-bar { position:absolute; left:0; right:0; bottom:0; padding:1.3rem 2.5rem 1.5rem; z-index:15; pointer-events:auto; display:flex; flex-direction:column; gap:0.75rem; }
-  .bottom-bar::before { content:""; position:absolute; inset:0; background: linear-gradient(0deg, rgba(17,24,39,0.92) 10%, rgba(17,24,39,0.6) 40%, transparent 100%); z-index:-1; pointer-events:none; }
-  .slider-label { font-size:0.85rem; font-weight:600; color:var(--timeline-label); text-transform:none; letter-spacing:0; display:inline-flex; align-items:center; gap:0.35rem; padding:0.35rem 0.75rem; border-radius:0.8rem; background:var(--panel-bg); border:1px solid var(--panel-border); box-shadow:0 5px 16px rgba(0,0,0,0.3); width:fit-content; }
-  .slider-controls { display:flex; align-items:center; gap:0.75rem; padding:0.8rem 0.95rem; border-radius:1.25rem; background:var(--panel-bg); border:1px solid var(--panel-border); box-shadow:0 6px 24px rgba(0,0,0,0.35); backdrop-filter:blur(12px); width:min(560px, calc(100vw - 4rem)); }
-  .slider-controls .chip { padding:0.4rem 0.75rem; width:2.5rem; display:grid; place-items:center; }
-  #timelinePrev { transform:rotate(180deg); }
-  .slider-wrap { display:flex; align-items:center; gap:1rem; position:relative; z-index:1; flex:1; }
-  #timelineSlider { width:100%; appearance:none; height:4px; border-radius:999px; background:var(--timeline-track); cursor:pointer; }
-  #timelineSlider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:var(--accent); border:none; box-shadow:0 0 0 4px var(--accent-soft); }
-  #timelineSlider::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--accent); border:none; box-shadow:0 0 0 4px var(--accent-soft); }
-  #timelineSlider:disabled { cursor:not-allowed; opacity:0.4; }
-
-  .modal{ position:fixed; inset:0; background:var(--modal-bg); z-index:50; display:flex; align-items:center; justify-content:center; padding:2rem; overflow:hidden; }
-  .modal-dialog{ position:relative; z-index:1; background:var(--modal-surface); padding:1.75rem; border-radius:12px; border:1px solid var(--panel-border); max-width:520px; width:100%; box-shadow:var(--shadow); }
-    .modal-close{ position:absolute; top:1rem; right:1rem; width:2.25rem; height:2.25rem; border-radius:999px; background:var(--panel-hover); color:var(--app-fg); font-size:1.5rem; line-height:1; display:grid; place-items:center; cursor:pointer; transition:background 0.18s ease, transform 0.18s ease; }
-    .modal-close:hover{ background:var(--accent-soft); transform:scale(1.05); }
-    .modal-dialog ul{ margin:0 0 1.25rem 1rem; padding:0 0 0 1.1rem; display:grid; gap:0.4rem; color:var(--timeline-label); }
-    .modal-dialog li{ line-height:1.45; }
-
-  .background-boxes{ position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; --cell-width:120px; --cell-height:64px; }
-  .background-boxes::after{ content:""; position:absolute; inset:0; background:radial-gradient(circle at center, rgba(17,24,39,0.25) 0%, rgba(17,24,39,0.82) 48%, rgba(17,24,39,0.95) 100%); mix-blend-mode:multiply; pointer-events:none; }
-  .background-boxes-inner{ position:absolute; top:45%; left:62%; transform:translate(-62%, -45%) skewX(-46deg) skewY(12deg) scale(1.05); display:flex; flex-direction:column; gap:0; pointer-events:auto; }
-  .background-boxes.is-mobile .background-boxes-inner{ top:50%; left:58%; transform:translate(-58%, -45%) skewX(-44deg) skewY(10deg) scale(0.9); }
-  .background-boxes-row{ display:flex; gap:0; }
-  .background-boxes-cell{ position:relative; width:var(--cell-width); height:var(--cell-height); border-top:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-right:1px solid var(--box-border-color, rgba(148,163,184,0.24)); border-left:1px solid rgba(148,163,184,0.18); background:linear-gradient(140deg, var(--box-color, rgba(99,102,241,0.32)), rgba(255,255,255,0.16)); box-shadow:0 4px 18px var(--box-shadow-color, rgba(99,102,241,0.38)); opacity:0.34; transform-origin:center; animation:boxPulse var(--duration,9s) ease-in-out infinite; animation-delay:var(--delay,0s); transition:opacity 0.22s ease, transform 0.25s ease, box-shadow 0.28s ease, background 0.32s ease, border-color 0.28s ease; pointer-events:auto; backdrop-filter:blur(2px); }
-  .background-boxes-cell::before{ content:""; position:absolute; inset:-12px -16px auto auto; width:40px; height:24px; background:rgba(148,163,184,0.22); clip-path:polygon(50% 10%, 55% 45%, 90% 50%, 55% 55%, 50% 90%, 45% 55%, 10% 50%, 45% 45%); opacity:0; transition:opacity 0.3s ease; }
-  .background-boxes-cell.has-plus::before{ opacity:0.3; }
-  .background-boxes-cell:hover{ opacity:1; transform:scale3d(1.12,1.12,1); background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.78)), rgba(255,255,255,0.42)); border-color:var(--box-border-strong, rgba(129,140,248,0.85)); box-shadow:0 28px 56px var(--box-shadow-strong, rgba(99,102,241,0.72)); filter:drop-shadow(0 16px 38px rgba(15,23,42,0.48)); }
-  .background-boxes-plus{ pointer-events:none; position:absolute; top:-12px; left:-18px; width:32px; height:32px; color:var(--plus-color, rgba(148,163,184,0.35)); stroke-width:1px; transition:color 0.3s ease; }
-  .background-boxes-cell:hover .background-boxes-plus{ color:var(--plus-hover-color, rgba(129,140,248,0.9)); }
-  [data-theme="light"] .background-boxes-cell{ background:linear-gradient(140deg, var(--box-color, rgba(99,102,241,0.25)), rgba(255,255,255,0.28)); border-color:rgba(148,163,184,0.28); box-shadow:0 4px 16px rgba(99,102,241,0.32); }
-  [data-theme="light"] .background-boxes-cell:hover{ background:linear-gradient(135deg, var(--box-color-strong, rgba(99,102,241,0.82)), rgba(255,255,255,0.58)); box-shadow:0 32px 58px var(--box-shadow-strong, rgba(129,140,248,0.72)); border-color:var(--box-border-strong, rgba(129,140,248,0.9)); filter:drop-shadow(0 16px 32px rgba(15,23,42,0.24)); }
-  [data-theme="light"] .background-boxes-plus{ color:var(--plus-color, rgba(79,70,229,0.35)); }
-  [data-theme="light"] .background-boxes-cell:hover .background-boxes-plus,
-  [data-theme="light"] .background-boxes-cell.is-hover .background-boxes-plus{ color:var(--plus-hover-color, rgba(99,102,241,0.95)); }
-
-  .background-boxes-cell.color-0{ --box-color:#93c5fd44; --box-color-strong:#93c5fdff; --box-shadow-color:#93c5fdaa; --box-shadow-strong:#93c5fdff; --box-border-color:#93c5fd55; --box-border-strong:#93c5fddd; --plus-color:#93c5fd88; --plus-hover-color:#93c5fdff; }
-  .background-boxes-cell.color-1{ --box-color:#f9a8d444; --box-color-strong:#f9a8d4ff; --box-shadow-color:#f9a8d4aa; --box-shadow-strong:#f9a8d4ff; --box-border-color:#f9a8d455; --box-border-strong:#f9a8d4dd; --plus-color:#f9a8d488; --plus-hover-color:#f9a8d4ff; }
-  .background-boxes-cell.color-2{ --box-color:#86efac44; --box-color-strong:#86efacff; --box-shadow-color:#86efacaa; --box-shadow-strong:#86efacff; --box-border-color:#86efac55; --box-border-strong:#86efacdd; --plus-color:#86efac88; --plus-hover-color:#86efacff; }
-  .background-boxes-cell.color-3{ --box-color:#fde04744; --box-color-strong:#fde047ff; --box-shadow-color:#fde047aa; --box-shadow-strong:#fde047ff; --box-border-color:#fde04755; --box-border-strong:#fde047dd; --plus-color:#fde04788; --plus-hover-color:#fde047ff; }
-  .background-boxes-cell.color-4{ --box-color:#fca5a544; --box-color-strong:#fca5a5ff; --box-shadow-color:#fca5a5aa; --box-shadow-strong:#fca5a5ff; --box-border-color:#fca5a555; --box-border-strong:#fca5a5dd; --plus-color:#fca5a588; --plus-hover-color:#fca5a5ff; }
-  .background-boxes-cell.color-5{ --box-color:#d8b4fe44; --box-color-strong:#d8b4feff; --box-shadow-color:#d8b4feaa; --box-shadow-strong:#d8b4feff; --box-border-color:#d8b4fe55; --box-border-strong:#d8b4fedd; --plus-color:#d8b4fe88; --plus-hover-color:#d8b4feff; }
-  .background-boxes-cell.color-6{ --box-color:#a5b4fc44; --box-color-strong:#a5b4fcff; --box-shadow-color:#a5b4fcaa; --box-shadow-strong:#a5b4fcff; --box-border-color:#a5b4fc55; --box-border-strong:#a5b4fcdd; --plus-color:#a5b4fc88; --plus-hover-color:#a5b4fcff; }
-  .background-boxes-cell.color-7{ --box-color:#c4b5fd44; --box-color-strong:#c4b5fdff; --box-shadow-color:#c4b5fdaa; --box-shadow-strong:#c4b5fdff; --box-border-color:#c4b5fd55; --box-border-strong:#c4b5fddd; --plus-color:#c4b5fd88; --plus-hover-color:#c4b5fdff; }
-
-    @keyframes boxPulse{
-      0%,100%{ opacity:0.28; transform:scale3d(1,1,1); }
-      40%{ opacity:0.72; transform:scale3d(1.07,1.07,1); }
-      60%{ opacity:0.82; transform:scale3d(1.05,1.05,1); }
+    .control-stack {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      pointer-events: none;
     }
 
-    .frame{ position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 9999px rgba(0,0,0,0.25); z-index:25; user-select:none; touch-action:none; }
-    .frame.hidden{ display:none; }
-    .frame-badge{ position:absolute; top:10px; left:10px; background:var(--panel-bg); border:1px solid var(--panel-border); color:var(--app-fg); border-radius:0.75rem; padding:0.35rem 0.7rem; font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; pointer-events:none; }
-    
-    .frame-handle{ position:absolute; background:rgba(255,255,255,0.3); }
-    .frame-handle-n, .frame-handle-s{ left:10px; right:10px; height:8px; cursor:ns-resize; }
-    .frame-handle-e, .frame-handle-w{ top:10px; bottom:10px; width:8px; cursor:ew-resize; }
-    .frame-handle-n{ top:-4px; }
-    .frame-handle-s{ bottom:-4px; }
-    .frame-handle-e{ right:-4px; }
-    .frame-handle-w{ left:-4px; }
-    .frame-handle-ne, .frame-handle-nw, .frame-handle-se, .frame-handle-sw{ width:16px; height:16px; }
-    .frame-handle-ne{ top:-8px; right:-8px; cursor:nesw-resize; }
-    .frame-handle-nw{ top:-8px; left:-8px; cursor:nwse-resize; }
-    .frame-handle-se{ bottom:-8px; right:-8px; cursor:nwse-resize; }
-    .frame-handle-sw{ bottom:-8px; left:-8px; cursor:nesw-resize; }
-    .frame-handle:hover{ background:rgba(255,255,255,0.6); }
+    .control-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      pointer-events: auto;
+    }
 
-    @media (max-width:960px){ .control-stack{ top:.75rem; left:.75rem } .chip{ padding:.45rem .75rem } }
+    .chip {
+      appearance: none;
+      border: 1px solid var(--panel-border);
+      background: var(--panel-bg);
+      color: var(--app-fg);
+      border-radius: 999px;
+      padding: 0.5rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
 
-    @media (prefers-reduced-motion: reduce){
-      .background-boxes-cell{ animation:none; }
+    .chip-ghost {
+      background: var(--panel-bg);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .chip:hover,
+    .chip-ghost:hover {
+      background: var(--panel-hover);
+      transform: translateY(-1px);
+    }
+
+    .chip:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .meta-pill {
+      display: inline-flex;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.5rem 0.9rem;
+      border-radius: 999px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      font-weight: 600;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+    }
+
+    .menu {
+      position: relative;
+    }
+
+    .menu-panel {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 0.5rem;
+      padding: 0.75rem;
+      border-radius: 1rem;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-width: 12rem;
+      backdrop-filter: blur(14px);
+    }
+
+    .menu-panel button {
+      background: var(--panel-hover);
+      border: 1px solid transparent;
+      color: var(--app-fg);
+      border-radius: 0.75rem;
+      padding: 0.6rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease;
+    }
+
+    .menu-panel button:hover,
+    .menu-panel button:focus-visible {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    .bottom-bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 1.3rem 2.5rem 1.5rem;
+      z-index: 15;
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .bottom-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(0deg, rgba(17, 24, 39, 0.92) 10%, rgba(17, 24, 39, 0.6) 40%, transparent 100%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .slider-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--timeline-label);
+      text-transform: none;
+      letter-spacing: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 0.8rem;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 5px 16px rgba(0, 0, 0, 0.3);
+      width: fit-content;
+    }
+
+    .slider-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.8rem 0.95rem;
+      border-radius: 1.25rem;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(12px);
+      width: min(560px, calc(100vw - 4rem));
+    }
+
+    .slider-controls .chip {
+      padding: 0.4rem 0.75rem;
+      width: 2.5rem;
+      display: grid;
+      place-items: center;
+    }
+
+    #timelinePrev {
+      transform: rotate(180deg);
+    }
+
+    .slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: relative;
+      z-index: 1;
+      flex: 1;
+    }
+
+    #timelineSlider {
+      width: 100%;
+      appearance: none;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--timeline-track);
+      cursor: pointer;
+    }
+
+    #timelineSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    #timelineSlider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    #timelineSlider:disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: var(--modal-bg);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      overflow: hidden;
+    }
+
+    .modal-dialog {
+      position: relative;
+      z-index: 1;
+      background: var(--modal-surface);
+      padding: 1.75rem;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      max-width: 520px;
+      width: 100%;
+      box-shadow: var(--shadow);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 999px;
+      background: var(--panel-hover);
+      color: var(--app-fg);
+      font-size: 1.5rem;
+      line-height: 1;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: background 0.18s ease, transform 0.18s ease;
+    }
+
+    .modal-close:hover {
+      background: var(--accent-soft);
+      transform: scale(1.05);
+    }
+
+    .modal-dialog ul {
+      margin: 0 0 1.25rem 1rem;
+      padding: 0 0 0 1.1rem;
+      display: grid;
+      gap: 0.4rem;
+      color: var(--timeline-label);
+    }
+
+    .modal-dialog li {
+      line-height: 1.45;
+    }
+
+    .background-boxes {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+      --cell-width: 120px;
+      --cell-height: 64px;
+    }
+
+    .background-boxes::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(17, 24, 39, 0.25) 0%, rgba(17, 24, 39, 0.82) 48%, rgba(17, 24, 39, 0.95) 100%);
+      mix-blend-mode: multiply;
+      pointer-events: none;
+    }
+
+    .background-boxes-inner {
+      position: absolute;
+      top: 45%;
+      left: 62%;
+      transform: translate(-62%, -45%) skewX(-46deg) skewY(12deg) scale(1.05);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      pointer-events: auto;
+    }
+
+    .background-boxes.is-mobile .background-boxes-inner {
+      top: 50%;
+      left: 58%;
+      transform: translate(-58%, -45%) skewX(-44deg) skewY(10deg) scale(0.9);
+    }
+
+    .background-boxes-row {
+      display: flex;
+      gap: 0;
+    }
+
+    .background-boxes-cell {
+      position: relative;
+      width: var(--cell-width);
+      height: var(--cell-height);
+      border-top: 1px solid var(--box-border-color, rgba(148, 163, 184, 0.24));
+      border-right: 1px solid var(--box-border-color, rgba(148, 163, 184, 0.24));
+      border-left: 1px solid rgba(148, 163, 184, 0.18);
+      background: linear-gradient(140deg, var(--box-color, rgba(99, 102, 241, 0.32)), rgba(255, 255, 255, 0.16));
+      box-shadow: 0 4px 18px var(--box-shadow-color, rgba(99, 102, 241, 0.38));
+      opacity: 0.34;
+      transform-origin: center;
+      animation: boxPulse var(--duration, 9s) ease-in-out infinite;
+      animation-delay: var(--delay, 0s);
+      transition: opacity 0.22s ease, transform 0.25s ease, box-shadow 0.28s ease, background 0.32s ease, border-color 0.28s ease;
+      pointer-events: auto;
+      backdrop-filter: blur(2px);
+    }
+
+    .background-boxes-cell::before {
+      content: "";
+      position: absolute;
+      inset: -12px -16px auto auto;
+      width: 40px;
+      height: 24px;
+      background: rgba(148, 163, 184, 0.22);
+      clip-path: polygon(50% 10%, 55% 45%, 90% 50%, 55% 55%, 50% 90%, 45% 55%, 10% 50%, 45% 45%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .background-boxes-cell.has-plus::before {
+      opacity: 0.3;
+    }
+
+    .background-boxes-cell:hover {
+      opacity: 1;
+      transform: scale3d(1.12, 1.12, 1);
+      background: linear-gradient(135deg, var(--box-color-strong, rgba(99, 102, 241, 0.78)), rgba(255, 255, 255, 0.42));
+      border-color: var(--box-border-strong, rgba(129, 140, 248, 0.85));
+      box-shadow: 0 28px 56px var(--box-shadow-strong, rgba(99, 102, 241, 0.72));
+      filter: drop-shadow(0 16px 38px rgba(15, 23, 42, 0.48));
+    }
+
+    .background-boxes-plus {
+      pointer-events: none;
+      position: absolute;
+      top: -12px;
+      left: -18px;
+      width: 32px;
+      height: 32px;
+      color: var(--plus-color, rgba(148, 163, 184, 0.35));
+      stroke-width: 1px;
+      transition: color 0.3s ease;
+    }
+
+    .background-boxes-cell:hover .background-boxes-plus {
+      color: var(--plus-hover-color, rgba(129, 140, 248, 0.9));
+    }
+
+    [data-theme="light"] .background-boxes-cell {
+      background: linear-gradient(140deg, var(--box-color, rgba(99, 102, 241, 0.25)), rgba(255, 255, 255, 0.28));
+      border-color: rgba(148, 163, 184, 0.28);
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.32);
+    }
+
+    [data-theme="light"] .background-boxes-cell:hover {
+      background: linear-gradient(135deg, var(--box-color-strong, rgba(99, 102, 241, 0.82)), rgba(255, 255, 255, 0.58));
+      box-shadow: 0 32px 58px var(--box-shadow-strong, rgba(129, 140, 248, 0.72));
+      border-color: var(--box-border-strong, rgba(129, 140, 248, 0.9));
+      filter: drop-shadow(0 16px 32px rgba(15, 23, 42, 0.24));
+    }
+
+    [data-theme="light"] .background-boxes-plus {
+      color: var(--plus-color, rgba(79, 70, 229, 0.35));
+    }
+
+    [data-theme="light"] .background-boxes-cell:hover .background-boxes-plus,
+    [data-theme="light"] .background-boxes-cell.is-hover .background-boxes-plus {
+      color: var(--plus-hover-color, rgba(99, 102, 241, 0.95));
+    }
+
+    .background-boxes-cell.color-0 {
+      --box-color: #93c5fd44;
+      --box-color-strong: #93c5fdff;
+      --box-shadow-color: #93c5fdaa;
+      --box-shadow-strong: #93c5fdff;
+      --box-border-color: #93c5fd55;
+      --box-border-strong: #93c5fddd;
+      --plus-color: #93c5fd88;
+      --plus-hover-color: #93c5fdff;
+    }
+
+    .background-boxes-cell.color-1 {
+      --box-color: #f9a8d444;
+      --box-color-strong: #f9a8d4ff;
+      --box-shadow-color: #f9a8d4aa;
+      --box-shadow-strong: #f9a8d4ff;
+      --box-border-color: #f9a8d455;
+      --box-border-strong: #f9a8d4dd;
+      --plus-color: #f9a8d488;
+      --plus-hover-color: #f9a8d4ff;
+    }
+
+    .background-boxes-cell.color-2 {
+      --box-color: #86efac44;
+      --box-color-strong: #86efacff;
+      --box-shadow-color: #86efacaa;
+      --box-shadow-strong: #86efacff;
+      --box-border-color: #86efac55;
+      --box-border-strong: #86efacdd;
+      --plus-color: #86efac88;
+      --plus-hover-color: #86efacff;
+    }
+
+    .background-boxes-cell.color-3 {
+      --box-color: #fde04744;
+      --box-color-strong: #fde047ff;
+      --box-shadow-color: #fde047aa;
+      --box-shadow-strong: #fde047ff;
+      --box-border-color: #fde04755;
+      --box-border-strong: #fde047dd;
+      --plus-color: #fde04788;
+      --plus-hover-color: #fde047ff;
+    }
+
+    .background-boxes-cell.color-4 {
+      --box-color: #fca5a544;
+      --box-color-strong: #fca5a5ff;
+      --box-shadow-color: #fca5a5aa;
+      --box-shadow-strong: #fca5a5ff;
+      --box-border-color: #fca5a555;
+      --box-border-strong: #fca5a5dd;
+      --plus-color: #fca5a588;
+      --plus-hover-color: #fca5a5ff;
+    }
+
+    .background-boxes-cell.color-5 {
+      --box-color: #d8b4fe44;
+      --box-color-strong: #d8b4feff;
+      --box-shadow-color: #d8b4feaa;
+      --box-shadow-strong: #d8b4feff;
+      --box-border-color: #d8b4fe55;
+      --box-border-strong: #d8b4fedd;
+      --plus-color: #d8b4fe88;
+      --plus-hover-color: #d8b4feff;
+    }
+
+    .background-boxes-cell.color-6 {
+      --box-color: #a5b4fc44;
+      --box-color-strong: #a5b4fcff;
+      --box-shadow-color: #a5b4fcaa;
+      --box-shadow-strong: #a5b4fcff;
+      --box-border-color: #a5b4fc55;
+      --box-border-strong: #a5b4fcdd;
+      --plus-color: #a5b4fc88;
+      --plus-hover-color: #a5b4fcff;
+    }
+
+    .background-boxes-cell.color-7 {
+      --box-color: #c4b5fd44;
+      --box-color-strong: #c4b5fdff;
+      --box-shadow-color: #c4b5fdaa;
+      --box-shadow-strong: #c4b5fdff;
+      --box-border-color: #c4b5fd55;
+      --box-border-strong: #c4b5fddd;
+      --plus-color: #c4b5fd88;
+      --plus-hover-color: #c4b5fdff;
+    }
+
+    @keyframes boxPulse {
+
+      0%,
+      100% {
+        opacity: 0.28;
+        transform: scale3d(1, 1, 1);
+      }
+
+      40% {
+        opacity: 0.72;
+        transform: scale3d(1.07, 1.07, 1);
+      }
+
+      60% {
+        opacity: 0.82;
+        transform: scale3d(1.05, 1.05, 1);
+      }
+    }
+
+    .frame {
+      position: absolute;
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      border-radius: 12px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 0 9999px rgba(0, 0, 0, 0.25);
+      z-index: 25;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .frame.hidden {
+      display: none;
+    }
+
+    .frame-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      color: var(--app-fg);
+      border-radius: 0.75rem;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    .frame-handle {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .frame-handle-n,
+    .frame-handle-s {
+      left: 10px;
+      right: 10px;
+      height: 8px;
+      cursor: ns-resize;
+    }
+
+    .frame-handle-e,
+    .frame-handle-w {
+      top: 10px;
+      bottom: 10px;
+      width: 8px;
+      cursor: ew-resize;
+    }
+
+    .frame-handle-n {
+      top: -4px;
+    }
+
+    .frame-handle-s {
+      bottom: -4px;
+    }
+
+    .frame-handle-e {
+      right: -4px;
+    }
+
+    .frame-handle-w {
+      left: -4px;
+    }
+
+    .frame-handle-ne,
+    .frame-handle-nw,
+    .frame-handle-se,
+    .frame-handle-sw {
+      width: 16px;
+      height: 16px;
+    }
+
+    .frame-handle-ne {
+      top: -8px;
+      right: -8px;
+      cursor: nesw-resize;
+    }
+
+    .frame-handle-nw {
+      top: -8px;
+      left: -8px;
+      cursor: nwse-resize;
+    }
+
+    .frame-handle-se {
+      bottom: -8px;
+      right: -8px;
+      cursor: nwse-resize;
+    }
+
+    .frame-handle-sw {
+      bottom: -8px;
+      left: -8px;
+      cursor: nesw-resize;
+    }
+
+    .frame-handle:hover {
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    @media (max-width:960px) {
+      .control-stack {
+        top: .75rem;
+        left: .75rem
+      }
+
+      .chip {
+        padding: .45rem .75rem
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .background-boxes-cell {
+        animation: none;
+      }
+    }
+
+    /* Time Lapse Modal Specifics */
+    .timelapse-range {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .timelapse-input {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .timelapse-input label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--timeline-label);
+    }
+
+    .timelapse-input select {
+      background: var(--panel-hover);
+      border: 1px solid var(--panel-border);
+      color: var(--app-fg);
+      padding: 0.6rem;
+      border-radius: 0.75rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .timelapse-progress {
+      margin-top: 1rem;
+      border-top: 1px solid var(--panel-border);
+      padding-top: 1rem;
+    }
+
+    .progress-bar-wrap {
+      height: 6px;
+      background: var(--timeline-track);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .modal-actions .chip {
+      flex: 1;
+      display: grid;
+      place-items: center;
     }
   </style>
 </head>
+
 <body data-theme="dark">
   <div id="map"></div>
 
@@ -228,6 +857,8 @@
           <button id="save4kMecca" type="button">4K Mecca</button>
           <button id="save4kMedina" type="button">4K Medina</button>
           <button id="save4kFrame" type="button">4K Selected Frame</button>
+          <hr style="border:0; border-top:1px solid var(--panel-border); margin:0.25rem 0;">
+          <button id="btnTimeLapse" type="button">Time Lapse Maker</button>
         </div>
       </div>
       <button id="btnTheme" class="chip" type="button" aria-pressed="true">Light Mode</button>
@@ -238,11 +869,11 @@
   <div class="bottom-bar" id="timelineWrapper">
     <div class="slider-label" id="timelineLabel">Snapshot 1 / 1</div>
     <div class="slider-controls">
-  <button id="timelinePrev" class="chip chip-ghost" type="button" aria-label="Previous snapshot">➤</button>
+      <button id="timelinePrev" class="chip chip-ghost" type="button" aria-label="Previous snapshot">➤</button>
       <div class="slider-wrap">
         <input type="range" id="timelineSlider" min="0" max="0" value="0" aria-label="Snapshot position">
       </div>
-  <button id="timelineNext" class="chip chip-ghost" type="button" aria-label="Next snapshot">➤</button>
+      <button id="timelineNext" class="chip chip-ghost" type="button" aria-label="Next snapshot">➤</button>
     </div>
   </div>
 
@@ -254,7 +885,8 @@
       <p>GUIDE:</p>
       <ul>
         <li>Drag the map or use the mouse wheel / pinch to pan and zoom.</li>
-        <li>Scrub the slider or tap <kbd>,</kbd> / <kbd>.</kbd> (or arrow keys) to move through available snapshots.</li>
+        <li>Scrub the slider or tap <kbd>,</kbd> / <kbd>.</kbd> (or arrow keys) to move through available snapshots.
+        </li>
         <li>Jump to key regions with the Mecca and Medina buttons.</li>
         <li>Press <kbd>H</kbd> or use “Toggle HUD” to hide the interface for clean screenshots.</li>
         <li>Press <kbd>F</kbd> to show or hide the draggable export frame; reposition it to capture a crop.</li>
@@ -263,7 +895,40 @@
       </ul>
       <p>You can close this guide with the × button or by clicking the shaded backdrop.</p>
       <div class="modal-actions">
-        <a href="https://github.com/Schweinefilet/wplacearchivesaudi" target="_blank" rel="noopener noreferrer">GitHub Repository (please star the repository :D)</a>
+        <a href="https://github.com/Schweinefilet/wplacearchivesaudi" target="_blank" rel="noopener noreferrer">GitHub
+          Repository (please star the repository :D)</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="timelapseModal" role="dialog" aria-modal="true" aria-labelledby="timelapseTitle">
+    <div class="modal-dialog">
+      <button class="modal-close" type="button" id="closeTimelapse" aria-label="Close dialog">&times;</button>
+      <h2 id="timelapseTitle">Time Lapse Maker</h2>
+      <p style="font-size:0.9rem; opacity:0.8;">Select a date range to capture 4K frames for each day. Frames will be
+        captured from the current view.</p>
+
+      <div class="timelapse-range">
+        <div class="timelapse-input">
+          <label for="tlStart">Start Date</label>
+          <select id="tlStart"></select>
+        </div>
+        <div class="timelapse-input">
+          <label for="tlEnd">End Date</label>
+          <select id="tlEnd"></select>
+        </div>
+      </div>
+
+      <div id="tlProgressWrap" class="timelapse-progress hidden">
+        <div id="tlStatus" style="font-size:0.85rem; font-weight:600;">Preparing...</div>
+        <div class="progress-bar-wrap">
+          <div id="tlProgressBar" class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnStartTimelapse" class="chip" type="button">Start Capture</button>
+        <button id="btnCancelTimelapse" class="chip chip-ghost" type="button">Cancel</button>
       </div>
     </div>
   </div>
@@ -301,49 +966,58 @@
         aboutModal: document.getElementById('aboutModal'),
         closeAbout: document.getElementById('closeAbout'),
         frame: document.getElementById('frame'),
-        timelinePrev: document.getElementById('timelinePrev'),
-        timelineNext: document.getElementById('timelineNext')
+        timelineNext: document.getElementById('timelineNext'),
+        btnTimeLapse: document.getElementById('btnTimeLapse'),
+        timelapseModal: document.getElementById('timelapseModal'),
+        closeTimelapse: document.getElementById('closeTimelapse'),
+        tlStart: document.getElementById('tlStart'),
+        tlEnd: document.getElementById('tlEnd'),
+        btnStartTimelapse: document.getElementById('btnStartTimelapse'),
+        btnCancelTimelapse: document.getElementById('btnCancelTimelapse'),
+        tlProgressWrap: document.getElementById('tlProgressWrap'),
+        tlStatus: document.getElementById('tlStatus'),
+        tlProgressBar: document.getElementById('tlProgressBar')
       };
 
-      function ensureBackgroundBoxes(){
-        if(!elements.aboutModal) return;
-        if(elements.aboutModal.querySelector('.background-boxes')) return;
+      function ensureBackgroundBoxes() {
+        if (!elements.aboutModal) return;
+        if (elements.aboutModal.querySelector('.background-boxes')) return;
         const wrapper = document.createElement('div');
         wrapper.className = 'background-boxes';
         wrapper.setAttribute('aria-hidden', 'true');
-  const isCompact = window.innerWidth <= 768;
+        const isCompact = window.innerWidth <= 768;
         wrapper.classList.toggle('is-mobile', isCompact);
-  const cellWidth = isCompact ? 96 : 128;
-  const cellHeight = isCompact ? 56 : 72;
+        const cellWidth = isCompact ? 96 : 128;
+        const cellHeight = isCompact ? 56 : 72;
         wrapper.style.setProperty('--cell-width', cellWidth + 'px');
         wrapper.style.setProperty('--cell-height', cellHeight + 'px');
         const inner = document.createElement('div');
         inner.className = 'background-boxes-inner';
-  const rows = isCompact ? 18 : 28;
-  const cols = isCompact ? 24 : 34;
-        const colorVariants = ['color-0','color-1','color-2','color-3','color-4','color-5','color-6','color-7'];
+        const rows = isCompact ? 18 : 28;
+        const cols = isCompact ? 24 : 34;
+        const colorVariants = ['color-0', 'color-1', 'color-2', 'color-3', 'color-4', 'color-5', 'color-6', 'color-7'];
         const fragment = document.createDocumentFragment();
-        for(let i=0; i<rows; i++){
+        for (let i = 0; i < rows; i++) {
           const row = document.createElement('div');
           row.className = 'background-boxes-row';
-          for(let j=0; j<cols; j++){
+          for (let j = 0; j < cols; j++) {
             const cell = document.createElement('div');
             const variant = colorVariants[Math.floor(Math.random() * colorVariants.length)];
             cell.className = `background-boxes-cell ${variant}`;
             cell.style.setProperty('--delay', `${(Math.random() * -5).toFixed(2)}s`);
             cell.style.setProperty('--duration', `${(7 + Math.random() * 3).toFixed(2)}s`);
-            if(((i + j) % 5) === 0){
+            if (((i + j) % 5) === 0) {
               cell.classList.add('has-plus');
-              const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-              svg.setAttribute('viewBox','0 0 24 24');
-              svg.setAttribute('fill','none');
-              svg.setAttribute('stroke-width','1.5');
-              svg.setAttribute('stroke','currentColor');
+              const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+              svg.setAttribute('viewBox', '0 0 24 24');
+              svg.setAttribute('fill', 'none');
+              svg.setAttribute('stroke-width', '1.5');
+              svg.setAttribute('stroke', 'currentColor');
               svg.classList.add('background-boxes-plus');
-              const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-              path.setAttribute('d','M12 6v12m6-6H6');
-              path.setAttribute('stroke-linecap','round');
-              path.setAttribute('stroke-linejoin','round');
+              const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              path.setAttribute('d', 'M12 6v12m6-6H6');
+              path.setAttribute('stroke-linecap', 'round');
+              path.setAttribute('stroke-linejoin', 'round');
               svg.appendChild(path);
               cell.appendChild(svg);
             }
@@ -356,19 +1030,19 @@
         elements.aboutModal.appendChild(wrapper);
       }
 
-      function initTheme(){ const saved = localStorage.getItem(THEME_KEY); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const initial = (saved === 'dark' || saved === 'light') ? saved : (prefersDark ? 'dark' : 'light'); setTheme(initial); }
-      function setTheme(theme){ const next = theme === 'dark' ? 'dark' : 'light'; elements.body.dataset.theme = next; localStorage.setItem(THEME_KEY, next); elements.btnTheme.textContent = next === 'dark' ? 'Light Mode' : 'Dark Mode'; }
-      function detectMobile(){ const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) || window.innerWidth <= 768; if(isMobile) elements.body.classList.add('is-mobile'); else elements.body.classList.remove('is-mobile'); }
+      function initTheme() { const saved = localStorage.getItem(THEME_KEY); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const initial = (saved === 'dark' || saved === 'light') ? saved : (prefersDark ? 'dark' : 'light'); setTheme(initial); }
+      function setTheme(theme) { const next = theme === 'dark' ? 'dark' : 'light'; elements.body.dataset.theme = next; localStorage.setItem(THEME_KEY, next); elements.btnTheme.textContent = next === 'dark' ? 'Light Mode' : 'Dark Mode'; }
+      function detectMobile() { const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) || window.innerWidth <= 768; if (isMobile) elements.body.classList.add('is-mobile'); else elements.body.classList.remove('is-mobile'); }
 
       initTheme(); detectMobile(); window.addEventListener('resize', detectMobile);
 
-  const map = L.map('map', { minZoom:7, maxZoom:14, zoomSnap:0.25, zoomDelta:0.25, scrollWheelZoom:true, zoomControl:false, fadeAnimation:false, preferCanvas:false }).setView([21.422487,39.826206],11.5);
+      const map = L.map('map', { minZoom: 7, maxZoom: 14, zoomSnap: 0.25, zoomDelta: 0.25, scrollWheelZoom: true, zoomControl: false, fadeAnimation: false, preferCanvas: false }).setView([21.422487, 39.826206], 11.5);
 
       // Pixel snapping to avoid seams and force crisp tiles similar to samuelscheit implementation
       (() => {
         const original = L.GridLayer.prototype._initTile;
         L.GridLayer.include({
-          _initTile(tile){
+          _initTile(tile) {
             original.call(this, tile);
             const size = this.getTileSize();
             tile.setAttribute('width', size.x);
@@ -380,7 +1054,7 @@
             tile.style.imageRendering = 'pixelated';
             tile.style.backfaceVisibility = 'hidden';
             tile.style.transform = 'translate3d(0,0,0)';
-            if(tile._tilePos){
+            if (tile._tilePos) {
               tile._tilePos._round();
               L.DomUtil.setPosition(tile, tile._tilePos, false);
             }
@@ -389,16 +1063,16 @@
       })();
 
       // Create both base map layers
-      state.baseMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' });
-      state.darkBaseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO', subdomains: 'abcd' });
-      
+      state.baseMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
+      state.darkBaseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors © CARTO', subdomains: 'abcd' });
+
       // Add default base map
       state.baseMap.addTo(map);
 
-  state.overlay = L.tileLayer(TRANSPARENT_TILE, { tileSize:256, minZoom:7, maxZoom:14, minNativeZoom:OVERLAY_ZOOM, maxNativeZoom:OVERLAY_ZOOM, keepBuffer:6, updateWhenZooming:true, updateWhenIdle:false, errorTileUrl:TRANSPARENT_TILE, crossOrigin:false, noWrap:true }).addTo(map);
+      state.overlay = L.tileLayer(TRANSPARENT_TILE, { tileSize: 256, minZoom: 7, maxZoom: 14, minNativeZoom: OVERLAY_ZOOM, maxNativeZoom: OVERLAY_ZOOM, keepBuffer: 6, updateWhenZooming: true, updateWhenIdle: false, errorTileUrl: TRANSPARENT_TILE, crossOrigin: false, noWrap: true }).addTo(map);
 
-      function syncSliderBounds(){
-        if(!elements.timelineSlider) return;
+      function syncSliderBounds() {
+        if (!elements.timelineSlider) return;
         const max = Math.max(0, state.snaps.length - 1);
         elements.timelineSlider.min = '0';
         elements.timelineSlider.max = String(max);
@@ -406,23 +1080,23 @@
         elements.timelineSlider.disabled = state.snaps.length <= 1;
       }
 
-      function updateSliderUI(){
-        if(!elements.timelineSlider || !elements.timelineLabel) return;
+      function updateSliderUI() {
+        if (!elements.timelineSlider || !elements.timelineLabel) return;
         elements.timelineSlider.value = String(state.index);
         const snap = state.snaps[state.index];
         const labelText = snap ? snap.label : 'Snapshot';
         elements.timelineLabel.textContent = `${labelText} · ${state.index + 1} / ${state.snaps.length}`;
-        if(elements.timelinePrev) elements.timelinePrev.disabled = state.index <= 0;
-        if(elements.timelineNext) elements.timelineNext.disabled = state.index >= state.snaps.length - 1;
+        if (elements.timelinePrev) elements.timelinePrev.disabled = state.index <= 0;
+        if (elements.timelineNext) elements.timelineNext.disabled = state.index >= state.snaps.length - 1;
       }
 
-      function setHudHidden(next){
+      function setHudHidden(next) {
         state.isHudHidden = !!next;
         elements.body.classList.toggle('hud-hidden', state.isHudHidden);
-        if(elements.btnToggleHUD) elements.btnToggleHUD.setAttribute('aria-pressed', state.isHudHidden ? 'true' : 'false');
+        if (elements.btnToggleHUD) elements.btnToggleHUD.setAttribute('aria-pressed', state.isHudHidden ? 'true' : 'false');
       }
 
-      function updateMeta(){
+      function updateMeta() {
         const snap = state.snaps[state.index];
         elements.currentLabel.textContent = snap ? snap.label : '—';
         elements.currentZoom.textContent = 'Z ' + map.getZoom().toFixed(2);
@@ -433,13 +1107,13 @@
         updateSliderUI();
       }
 
-      function setSnap(n){
-        if(!Array.isArray(state.snaps) || !state.snaps.length) return;
+      function setSnap(n) {
+        if (!Array.isArray(state.snaps) || !state.snaps.length) return;
         const clamped = Math.max(0, Math.min(state.snaps.length - 1, n | 0));
         state.index = clamped;
         const snap = state.snaps[state.index] || null;
         state.currentDir = snap && snap.dir ? snap.dir : '';
-        if(state.currentDir){
+        if (state.currentDir) {
           state.overlay.setUrl(`${state.currentDir}/{x}/{y}.png`);
         } else {
           state.overlay.setUrl(TRANSPARENT_TILE);
@@ -447,38 +1121,111 @@
         updateMeta();
       }
 
-      function stepSnap(d){ setSnap(state.index + d); }
+      function stepSnap(d) { setSnap(state.index + d); }
 
-  function openAbout(){ if(elements.aboutModal){ ensureBackgroundBoxes(); elements.aboutModal.classList.remove('hidden'); } }
-      function closeAbout(){
-        if(!elements.aboutModal) return;
+      function openAbout() { if (elements.aboutModal) { ensureBackgroundBoxes(); elements.aboutModal.classList.remove('hidden'); } }
+      function closeAbout() {
+        if (!elements.aboutModal) return;
         elements.aboutModal.classList.add('hidden');
         const bg = elements.aboutModal.querySelector('.background-boxes');
-        if(bg) bg.remove();
+        if (bg) bg.remove();
       }
 
-      elements.btnExport.addEventListener('click', e=>{ e.stopPropagation(); elements.exportPanel.classList.toggle('hidden'); });
-      document.addEventListener('click', e=>{
-        if(elements.exportMenu && !elements.exportMenu.contains(e.target)) elements.exportPanel.classList.add('hidden');
-        if(elements.aboutModal && !elements.aboutModal.classList.contains('hidden')){
+      elements.btnExport.addEventListener('click', e => { e.stopPropagation(); elements.exportPanel.classList.toggle('hidden'); });
+      document.addEventListener('click', e => {
+        if (elements.exportMenu && !elements.exportMenu.contains(e.target)) elements.exportPanel.classList.add('hidden');
+        if (elements.aboutModal && !elements.aboutModal.classList.contains('hidden')) {
           const dialog = elements.aboutModal.querySelector('.modal-dialog');
-          if(dialog && !dialog.contains(e.target) && e.target !== elements.btnAbout) closeAbout();
+          if (dialog && !dialog.contains(e.target) && e.target !== elements.btnAbout) closeAbout();
         }
       });
       elements.btnAbout.addEventListener('click', openAbout);
-      if(elements.closeAbout) elements.closeAbout.addEventListener('click', closeAbout);
-      if(elements.aboutModal) elements.aboutModal.addEventListener('click', ev=>{ if(ev.target === elements.aboutModal) closeAbout(); });
-  if(elements.timelineSlider) elements.timelineSlider.addEventListener('input', ev=>{ const idx = Number(ev.target.value); if(!Number.isNaN(idx)) setSnap(idx); });
-  if(elements.timelinePrev) elements.timelinePrev.addEventListener('click', ()=>{ stepSnap(-1); });
-  if(elements.timelineNext) elements.timelineNext.addEventListener('click', ()=>{ stepSnap(1); });
-      if(elements.btnToggleHUD) elements.btnToggleHUD.addEventListener('click', ()=>{ setHudHidden(!state.isHudHidden); });
-      if(elements.btnToggleBaseMap) elements.btnToggleBaseMap.addEventListener('click', ()=>{
+      if (elements.closeAbout) elements.closeAbout.addEventListener('click', closeAbout);
+      if (elements.aboutModal) elements.aboutModal.addEventListener('click', ev => { if (ev.target === elements.aboutModal) closeAbout(); });
+
+      const openTimelapse = () => {
+        if (!elements.timelapseModal) return;
+        // Populate dates
+        elements.tlStart.innerHTML = '';
+        elements.tlEnd.innerHTML = '';
+        state.snaps.forEach((snap, i) => {
+          const optStart = new Option(snap.label, i.toString());
+          const optEnd = new Option(snap.label, i.toString());
+          elements.tlStart.add(optStart);
+          elements.tlEnd.add(optEnd);
+        });
+        elements.tlStart.value = "0";
+        elements.tlEnd.value = (state.snaps.length - 1).toString();
+        elements.timelapseModal.classList.remove('hidden');
+        elements.tlProgressWrap.classList.add('hidden');
+        elements.btnStartTimelapse.disabled = false;
+      };
+      const closeTimelapse = () => {
+        if (elements.timelapseModal) elements.timelapseModal.classList.add('hidden');
+      };
+      if (elements.btnTimeLapse) elements.btnTimeLapse.addEventListener('click', openTimelapse);
+      if (elements.closeTimelapse) elements.closeTimelapse.addEventListener('click', closeTimelapse);
+      if (elements.btnCancelTimelapse) elements.btnCancelTimelapse.addEventListener('click', closeTimelapse);
+
+      let isTimelapseRunning = false;
+      const startTimelapse = async () => {
+        if (isTimelapseRunning) return;
+        const startIdx = parseInt(elements.tlStart.value);
+        const endIdx = parseInt(elements.tlEnd.value);
+        if (startIdx > endIdx) { alert('Start date must be before or equal to end date'); return; }
+
+        isTimelapseRunning = true;
+        elements.btnStartTimelapse.disabled = true;
+        elements.tlProgressWrap.classList.remove('hidden');
+
+        const count = endIdx - startIdx + 1;
+        const rect = getFrameRect();
+        const frameVisible = !elements.frame.classList.contains('hidden');
+
+        let bounds;
+        if (frameVisible) {
+          bounds = L.latLngBounds(
+            map.containerPointToLatLng([rect.x, rect.y + rect.h]),
+            map.containerPointToLatLng([rect.x + rect.w, rect.y])
+          );
+        } else {
+          bounds = map.getBounds();
+        }
+
+        for (let i = startIdx; i <= endIdx; i++) {
+          if (!isTimelapseRunning) break;
+          const snap = state.snaps[i];
+          elements.tlStatus.textContent = `Capturing ${snap.label} (${i - startIdx + 1} / ${count})...`;
+          elements.tlProgressBar.style.width = `${((i - startIdx + 1) / count) * 100}%`;
+
+          // Set internal state to the re-sync snap dir temporarily for export
+          const originalIndex = state.index;
+          state.index = i;
+
+          await export4K(bounds, `timelapse_${(i - startIdx + 1).toString().padStart(3, '0')}`, frameVisible ? rect : null);
+
+          state.index = originalIndex;
+          // Small delay to let browser breathe
+          await new Promise(r => setTimeout(r, 800));
+        }
+
+        isTimelapseRunning = false;
+        elements.btnStartTimelapse.disabled = false;
+        elements.tlStatus.textContent = 'Capture complete!';
+        setTimeout(closeTimelapse, 1500);
+      };
+      if (elements.btnStartTimelapse) elements.btnStartTimelapse.addEventListener('click', startTimelapse);
+      if (elements.timelineSlider) elements.timelineSlider.addEventListener('input', ev => { const idx = Number(ev.target.value); if (!Number.isNaN(idx)) setSnap(idx); });
+      if (elements.timelinePrev) elements.timelinePrev.addEventListener('click', () => { stepSnap(-1); });
+      if (elements.timelineNext) elements.timelineNext.addEventListener('click', () => { stepSnap(1); });
+      if (elements.btnToggleHUD) elements.btnToggleHUD.addEventListener('click', () => { setHudHidden(!state.isHudHidden); });
+      if (elements.btnToggleBaseMap) elements.btnToggleBaseMap.addEventListener('click', () => {
         state.useDarkMap = !state.useDarkMap;
-        if(state.useDarkMap){
+        if (state.useDarkMap) {
           map.removeLayer(state.baseMap);
           state.darkBaseMap.addTo(map);
           // Ensure overlay stays on top
-          if(state.overlay && map.hasLayer(state.overlay)){
+          if (state.overlay && map.hasLayer(state.overlay)) {
             state.overlay.bringToFront();
           }
           elements.btnToggleBaseMap.textContent = 'Light Map';
@@ -486,36 +1233,36 @@
           map.removeLayer(state.darkBaseMap);
           state.baseMap.addTo(map);
           // Ensure overlay stays on top
-          if(state.overlay && map.hasLayer(state.overlay)){
+          if (state.overlay && map.hasLayer(state.overlay)) {
             state.overlay.bringToFront();
           }
           elements.btnToggleBaseMap.textContent = 'Dark Map';
         }
       });
 
-      elements.btnTheme.addEventListener('click', ()=>{ const cur = elements.body.dataset.theme === 'dark' ? 'dark' : 'light'; setTheme(cur === 'dark' ? 'light' : 'dark'); });
-      elements.btnOpenLive.addEventListener('click', ()=>{ const c=map.getCenter(); const z=map.getZoom(); window.open(`https://wplace.live/?lat=${c.lat.toFixed(5)}&lng=${c.lng.toFixed(5)}&zoom=${Math.max(z,10.61).toFixed(2)}`,'_blank'); });
+      elements.btnTheme.addEventListener('click', () => { const cur = elements.body.dataset.theme === 'dark' ? 'dark' : 'light'; setTheme(cur === 'dark' ? 'light' : 'dark'); });
+      elements.btnOpenLive.addEventListener('click', () => { const c = map.getCenter(); const z = map.getZoom(); window.open(`https://wplace.live/?lat=${c.lat.toFixed(5)}&lng=${c.lng.toFixed(5)}&zoom=${Math.max(z, 10.61).toFixed(2)}`, '_blank'); });
 
-      elements.btnMecca.addEventListener('click', ()=>{ state.currentRegion='Mecca'; map.fitBounds(L.latLngBounds([21.30,39.676],[21.545,39.976]),{padding:[40,40]}); updateMeta(); });
-      elements.btnMedina.addEventListener('click', ()=>{ state.currentRegion='Medina'; map.fitBounds(L.latLngBounds([24.3497,39.37],[24.6997,39.979]),{padding:[40,40]}); updateMeta(); });
+      elements.btnMecca.addEventListener('click', () => { state.currentRegion = 'Mecca'; map.fitBounds(L.latLngBounds([21.30, 39.676], [21.545, 39.976]), { padding: [40, 40] }); updateMeta(); });
+      elements.btnMedina.addEventListener('click', () => { state.currentRegion = 'Medina'; map.fitBounds(L.latLngBounds([24.3497, 39.37], [24.6997, 39.979]), { padding: [40, 40] }); updateMeta(); });
 
       // Export functionality
       async function export4K(bounds, filename, frameRect = null) {
         console.log('export4K called with:', filename);
-        
+
         if (!state.snaps || state.index === undefined || state.index < 0) {
           console.error('No snaps or invalid index');
           return;
         }
         const snap = state.snaps[state.index];
-        
+
         if (!snap || !snap.dir) {
           console.error('Invalid snap or snap.dir');
           return;
         }
 
         elements.exportPanel.classList.add('hidden');
-        
+
         // Calculate target dimensions based on frame aspect ratio or default to 4K
         let targetWidth, targetHeight;
         if (frameRect && frameRect.w && frameRect.h) {
@@ -536,13 +1283,13 @@
           targetWidth = 3840;
           targetHeight = 2160;
         }
-        
+
         console.log(`Export dimensions: ${targetWidth}x${targetHeight}`);
-        
+
         // Calculate tile coordinates at zoom 11
         const zoom = OVERLAY_ZOOM;
         const tileSize = 256;
-        
+
         // Convert lat/lng to tile coordinates (with fractional precision)
         function lat2tile(lat, zoom) {
           return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom);
@@ -550,61 +1297,61 @@
         function lng2tile(lng, zoom) {
           return (lng + 180) / 360 * Math.pow(2, zoom);
         }
-        
+
         const nw = bounds.getNorthWest();
         const se = bounds.getSouthEast();
-        
+
         // Get fractional tile coordinates
         const minTileXFrac = lng2tile(nw.lng, zoom);
         const maxTileXFrac = lng2tile(se.lng, zoom);
         const minTileYFrac = lat2tile(nw.lat, zoom);
         const maxTileYFrac = lat2tile(se.lat, zoom);
-        
+
         // Get integer tile bounds
         const minTileX = Math.floor(minTileXFrac);
         const maxTileX = Math.floor(maxTileXFrac);
         const minTileY = Math.floor(minTileYFrac);
         const maxTileY = Math.floor(maxTileYFrac);
-        
+
         // Calculate pixel offsets within tiles
         const offsetX = (minTileXFrac - minTileX) * tileSize;
         const offsetY = (minTileYFrac - minTileY) * tileSize;
-        
+
         // Calculate pixel dimensions of the area
         const pixelWidth = (maxTileXFrac - minTileXFrac) * tileSize;
         const pixelHeight = (maxTileYFrac - minTileYFrac) * tileSize;
-        
+
         console.log(`Rendering area: ${pixelWidth.toFixed(0)}x${pixelHeight.toFixed(0)} px`);
         console.log(`Tiles needed: X ${minTileX}-${maxTileX}, Y ${minTileY}-${maxTileY}`);
-        
+
         // Create canvas at target resolution
         const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
         canvas.height = targetHeight;
         const ctx = canvas.getContext('2d');
-        
+
         // Calculate scale to fit target dimensions while maintaining aspect ratio
         const scaleX = targetWidth / pixelWidth;
         const scaleY = targetHeight / pixelHeight;
         const scale = Math.min(scaleX, scaleY);
-        
+
         const scaledWidth = pixelWidth * scale;
         const scaledHeight = pixelHeight * scale;
         const canvasOffsetX = (targetWidth - scaledWidth) / 2;
         const canvasOffsetY = (targetHeight - scaledHeight) / 2;
-        
+
         // Fill background
         ctx.fillStyle = elements.body.dataset.theme === 'dark' ? '#1a1a1a' : '#f0f0f0';
         ctx.fillRect(0, 0, targetWidth, targetHeight);
-        
+
         // Load and render base map tiles
         console.log('Loading base map tiles...');
         const baseMapPromises = [];
         // Use the currently active base map (dark or light)
-        const baseMapUrl = state.useDarkMap 
+        const baseMapUrl = state.useDarkMap
           ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
           : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-        
+
         for (let x = minTileX; x <= maxTileX; x++) {
           for (let y = minTileY; y <= maxTileY; y++) {
             const tileUrl = baseMapUrl.replace('{z}', zoom).replace('{x}', x).replace('{y}', y);
@@ -616,12 +1363,12 @@
                   // Calculate position in the composite
                   const tilePixelX = (x - minTileX) * tileSize - offsetX;
                   const tilePixelY = (y - minTileY) * tileSize - offsetY;
-                  
+
                   // Scale and position on canvas
                   const drawX = canvasOffsetX + tilePixelX * scale;
                   const drawY = canvasOffsetY + tilePixelY * scale;
                   const drawSize = tileSize * scale;
-                  
+
                   ctx.drawImage(img, drawX, drawY, drawSize, drawSize);
                   resolve();
                 };
@@ -633,7 +1380,7 @@
         }
         await Promise.all(baseMapPromises);
         console.log('Base map loaded');
-        
+
         // Load and render overlay tiles
         console.log('Loading overlay tiles...');
         const overlayPromises = [];
@@ -648,12 +1395,12 @@
                   // Calculate position in the composite
                   const tilePixelX = (x - minTileX) * tileSize - offsetX;
                   const tilePixelY = (y - minTileY) * tileSize - offsetY;
-                  
+
                   // Scale and position on canvas
                   const drawX = canvasOffsetX + tilePixelX * scale;
                   const drawY = canvasOffsetY + tilePixelY * scale;
                   const drawSize = tileSize * scale;
-                  
+
                   ctx.drawImage(img, drawX, drawY, drawSize, drawSize);
                   resolve();
                 };
@@ -670,16 +1417,16 @@
         const dateText = snap.label;
         const dateFontSize = 48;
         ctx.font = `bold ${dateFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        
+
         const dateMetrics = ctx.measureText(dateText);
         const datePadding = 15;
         const dateX = 30;
         const dateY = 60;
-        
+
         // Draw dark background for date
         ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.fillRect(dateX - datePadding, dateY - dateFontSize - datePadding/2, dateMetrics.width + datePadding * 2, dateFontSize + datePadding * 1.5);
-        
+        ctx.fillRect(dateX - datePadding, dateY - dateFontSize - datePadding / 2, dateMetrics.width + datePadding * 2, dateFontSize + datePadding * 1.5);
+
         // Draw date text
         ctx.fillStyle = '#ffffff';
         ctx.fillText(dateText, dateX, dateY);
@@ -688,16 +1435,16 @@
         const watermarkText = 'https://schweinefilet.github.io/wplacearchivesaudi/';
         const watermarkFontSize = 32;
         ctx.font = `${watermarkFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        
+
         const watermarkMetrics = ctx.measureText(watermarkText);
         const watermarkPadding = 12;
         const watermarkX = targetWidth - watermarkMetrics.width - 30;
         const watermarkY = targetHeight - 30;
-        
+
         // Draw dark background for watermark
         ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.fillRect(watermarkX - watermarkPadding, watermarkY - watermarkFontSize - watermarkPadding/2, watermarkMetrics.width + watermarkPadding * 2, watermarkFontSize + watermarkPadding * 1.5);
-        
+        ctx.fillRect(watermarkX - watermarkPadding, watermarkY - watermarkFontSize - watermarkPadding / 2, watermarkMetrics.width + watermarkPadding * 2, watermarkFontSize + watermarkPadding * 1.5);
+
         // Draw watermark text
         ctx.fillStyle = '#ffffff';
         ctx.fillText(watermarkText, watermarkX, watermarkY);
@@ -754,27 +1501,34 @@
       setHudHidden(state.isHudHidden);
       openAbout();
 
-      document.addEventListener('keydown', (ev)=>{
+      document.addEventListener('keydown', (ev) => {
         const tag = (document.activeElement && document.activeElement.tagName) || '';
-        if(['INPUT','TEXTAREA','SELECT'].includes(tag)) return;
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
         const k = ev.key.toLowerCase();
-        if(k === ',' || ev.key === 'ArrowLeft'){ ev.preventDefault(); stepSnap(-1); }
-        if(k === '.' || ev.key === 'ArrowRight'){ ev.preventDefault(); stepSnap(1); }
-        if(k === 'h'){ ev.preventDefault(); setHudHidden(!state.isHudHidden); }
-  if(k === 'f'){ ev.preventDefault(); if(elements.frame) elements.frame.classList.toggle('hidden'); }
-        if(k === 'escape' && elements.aboutModal && !elements.aboutModal.classList.contains('hidden')){ ev.preventDefault(); closeAbout(); }
+        if (k === ',' || ev.key === 'ArrowLeft') { ev.preventDefault(); stepSnap(-1); }
+        if (k === '.' || ev.key === 'ArrowRight') { ev.preventDefault(); stepSnap(1); }
+        if (k === 'h') { ev.preventDefault(); setHudHidden(!state.isHudHidden); }
+        if (k === 'f') { ev.preventDefault(); if (elements.frame) elements.frame.classList.toggle('hidden'); }
+        if (k === 'escape') {
+          ev.preventDefault();
+          if (elements.aboutModal && !elements.aboutModal.classList.contains('hidden')) closeAbout();
+          if (elements.timelapseModal && !elements.timelapseModal.classList.contains('hidden')) {
+            isTimelapseRunning = false;
+            closeTimelapse();
+          }
+        }
       });
 
       // frame dragging and resizing
       const frameState = { drag: null, resize: null };
-      function initFrame(){ const rect = map.getContainer().getBoundingClientRect(); const w = Math.min(Math.floor(rect.width * 0.55), 900); const h = Math.floor(w * 9 / 16); const x = Math.round((rect.width - w)/2); const y = Math.round((rect.height - h)/2); setFrameRect({x,y,w,h}); }
-      function setFrameRect(r){ const box=map.getContainer().getBoundingClientRect(); const next = {...r}; next.w = Math.max(60, Math.min(next.w, box.width)); next.h = Math.max(60, Math.min(next.h, box.height)); next.x = Math.max(0, Math.min(next.x, box.width-next.w)); next.y = Math.max(0, Math.min(next.y, box.height-next.h)); elements.frame.style.left = next.x+'px'; elements.frame.style.top = next.y+'px'; elements.frame.style.width = next.w+'px'; elements.frame.style.height = next.h+'px'; }
-      function getFrameRect(){ const s=getComputedStyle(elements.frame); return { x: parseInt(s.left,10)||0, y:parseInt(s.top,10)||0, w:parseInt(s.width,10)||0, h:parseInt(s.height,10)||0 }; }
-      
+      function initFrame() { const rect = map.getContainer().getBoundingClientRect(); const w = Math.min(Math.floor(rect.width * 0.55), 900); const h = Math.floor(w * 9 / 16); const x = Math.round((rect.width - w) / 2); const y = Math.round((rect.height - h) / 2); setFrameRect({ x, y, w, h }); }
+      function setFrameRect(r) { const box = map.getContainer().getBoundingClientRect(); const next = { ...r }; next.w = Math.max(60, Math.min(next.w, box.width)); next.h = Math.max(60, Math.min(next.h, box.height)); next.x = Math.max(0, Math.min(next.x, box.width - next.w)); next.y = Math.max(0, Math.min(next.y, box.height - next.h)); elements.frame.style.left = next.x + 'px'; elements.frame.style.top = next.y + 'px'; elements.frame.style.width = next.w + 'px'; elements.frame.style.height = next.h + 'px'; }
+      function getFrameRect() { const s = getComputedStyle(elements.frame); return { x: parseInt(s.left, 10) || 0, y: parseInt(s.top, 10) || 0, w: parseInt(s.width, 10) || 0, h: parseInt(s.height, 10) || 0 }; }
+
       // Handle dragging/resizing
-      elements.frame.addEventListener('pointerdown', e=>{
+      elements.frame.addEventListener('pointerdown', e => {
         const target = e.target;
-        if(target.classList.contains('frame-handle')){
+        if (target.classList.contains('frame-handle')) {
           e.preventDefault();
           e.stopPropagation();
           elements.frame.setPointerCapture(e.pointerId);
@@ -783,69 +1537,69 @@
           const handleClass = target.className.split(' ').find(c => c.startsWith('frame-handle-'));
           const handleDir = handleClass ? handleClass.substring('frame-handle-'.length) : '';
           // Store both for debugging, but use handleDir for direction checks to avoid accidental matches
-          frameState.resize = { startX:e.clientX, startY:e.clientY, base:rect, handleClass, handleDir, id:e.pointerId };
-        } else if(target === elements.frame || target.classList.contains('frame-badge')){
+          frameState.resize = { startX: e.clientX, startY: e.clientY, base: rect, handleClass, handleDir, id: e.pointerId };
+        } else if (target === elements.frame || target.classList.contains('frame-badge')) {
           e.preventDefault();
           elements.frame.setPointerCapture(e.pointerId);
           const rect = getFrameRect();
-          frameState.drag = { startX:e.clientX, startY:e.clientY, base:rect, id:e.pointerId };
+          frameState.drag = { startX: e.clientX, startY: e.clientY, base: rect, id: e.pointerId };
         }
       });
-      
-      window.addEventListener('pointermove', e=>{
-        if(frameState.drag){
+
+      window.addEventListener('pointermove', e => {
+        if (frameState.drag) {
           const dx = e.clientX - frameState.drag.startX;
           const dy = e.clientY - frameState.drag.startY;
           setFrameRect({ x: frameState.drag.base.x + dx, y: frameState.drag.base.y + dy, w: frameState.drag.base.w, h: frameState.drag.base.h });
-        } else if(frameState.resize){
+        } else if (frameState.resize) {
           const dx = e.clientX - frameState.resize.startX;
           const dy = e.clientY - frameState.resize.startY;
           const base = frameState.resize.base;
           const dir = frameState.resize.handleDir || '';
-          let newRect = {...base};
+          let newRect = { ...base };
 
           // Use the extracted direction (e.g., 'n','ne','sw','e','w','s')
           // Check for north component (top edge moving)
-          if(dir === 'n' || dir === 'ne' || dir === 'nw'){ 
-            newRect.y = base.y + dy; 
-            newRect.h = base.h - dy; 
+          if (dir === 'n' || dir === 'ne' || dir === 'nw') {
+            newRect.y = base.y + dy;
+            newRect.h = base.h - dy;
           }
           // Check for south component (bottom edge moving)
-          if(dir === 's' || dir === 'se' || dir === 'sw'){ 
-            newRect.h = base.h + dy; 
+          if (dir === 's' || dir === 'se' || dir === 'sw') {
+            newRect.h = base.h + dy;
           }
           // Check for west component (left edge moving)
-          if(dir === 'w' || dir === 'nw' || dir === 'sw'){ 
-            newRect.x = base.x + dx; 
-            newRect.w = base.w - dx; 
+          if (dir === 'w' || dir === 'nw' || dir === 'sw') {
+            newRect.x = base.x + dx;
+            newRect.w = base.w - dx;
           }
           // Check for east component (right edge moving)
-          if(dir === 'e' || dir === 'ne' || dir === 'se'){ 
-            newRect.w = base.w + dx; 
+          if (dir === 'e' || dir === 'ne' || dir === 'se') {
+            newRect.w = base.w + dx;
           }
 
           setFrameRect(newRect);
         }
       });
-      
-      window.addEventListener('pointerup', e=>{
-        if(frameState.drag && e.pointerId === frameState.drag.id) frameState.drag = null;
-        if(frameState.resize && e.pointerId === frameState.resize.id) frameState.resize = null;
+
+      window.addEventListener('pointerup', e => {
+        if (frameState.drag && e.pointerId === frameState.drag.id) frameState.drag = null;
+        if (frameState.resize && e.pointerId === frameState.resize.id) frameState.resize = null;
       });
-      
+
       window.addEventListener('resize', initFrame);
 
-      async function loadSnaps(){
-        try{
-          const res = await fetch('snaps.json', {cache:'no-store'});
-          if(res.ok){
+      async function loadSnaps() {
+        try {
+          const res = await fetch('snaps.json', { cache: 'no-store' });
+          if (res.ok) {
             const data = await res.json();
-            if(Array.isArray(data) && data.length) state.snaps = data;
+            if (Array.isArray(data) && data.length) state.snaps = data;
           }
-        } catch(err){
+        } catch (err) {
           console.error('Failed to load snaps.json', err);
         }
-        if(!Array.isArray(state.snaps) || state.snaps.length === 0){
+        if (!Array.isArray(state.snaps) || state.snaps.length === 0) {
           state.snaps = [{ label: 'Snapshot', dir: '' }];
         }
         syncSliderBounds();
@@ -855,11 +1609,12 @@
       loadSnaps();
     };
 
-    if(document.readyState === 'loading'){
+    if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initApp, { once: true });
     } else {
       initApp();
     }
   </script>
 </body>
+
 </html>
