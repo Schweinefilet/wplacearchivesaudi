@@ -966,6 +966,7 @@
         aboutModal: document.getElementById('aboutModal'),
         closeAbout: document.getElementById('closeAbout'),
         frame: document.getElementById('frame'),
+        timelinePrev: document.getElementById('timelinePrev'),
         timelineNext: document.getElementById('timelineNext'),
         btnTimeLapse: document.getElementById('btnTimeLapse'),
         timelapseModal: document.getElementById('timelapseModal'),
@@ -979,56 +980,7 @@
         tlProgressBar: document.getElementById('tlProgressBar')
       };
 
-      function ensureBackgroundBoxes() {
-        if (!elements.aboutModal) return;
-        if (elements.aboutModal.querySelector('.background-boxes')) return;
-        const wrapper = document.createElement('div');
-        wrapper.className = 'background-boxes';
-        wrapper.setAttribute('aria-hidden', 'true');
-        const isCompact = window.innerWidth <= 768;
-        wrapper.classList.toggle('is-mobile', isCompact);
-        const cellWidth = isCompact ? 96 : 128;
-        const cellHeight = isCompact ? 56 : 72;
-        wrapper.style.setProperty('--cell-width', cellWidth + 'px');
-        wrapper.style.setProperty('--cell-height', cellHeight + 'px');
-        const inner = document.createElement('div');
-        inner.className = 'background-boxes-inner';
-        const rows = isCompact ? 18 : 28;
-        const cols = isCompact ? 24 : 34;
-        const colorVariants = ['color-0', 'color-1', 'color-2', 'color-3', 'color-4', 'color-5', 'color-6', 'color-7'];
-        const fragment = document.createDocumentFragment();
-        for (let i = 0; i < rows; i++) {
-          const row = document.createElement('div');
-          row.className = 'background-boxes-row';
-          for (let j = 0; j < cols; j++) {
-            const cell = document.createElement('div');
-            const variant = colorVariants[Math.floor(Math.random() * colorVariants.length)];
-            cell.className = `background-boxes-cell ${variant}`;
-            cell.style.setProperty('--delay', `${(Math.random() * -5).toFixed(2)}s`);
-            cell.style.setProperty('--duration', `${(7 + Math.random() * 3).toFixed(2)}s`);
-            if (((i + j) % 5) === 0) {
-              cell.classList.add('has-plus');
-              const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-              svg.setAttribute('viewBox', '0 0 24 24');
-              svg.setAttribute('fill', 'none');
-              svg.setAttribute('stroke-width', '1.5');
-              svg.setAttribute('stroke', 'currentColor');
-              svg.classList.add('background-boxes-plus');
-              const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              path.setAttribute('d', 'M12 6v12m6-6H6');
-              path.setAttribute('stroke-linecap', 'round');
-              path.setAttribute('stroke-linejoin', 'round');
-              svg.appendChild(path);
-              cell.appendChild(svg);
-            }
-            row.appendChild(cell);
-          }
-          fragment.appendChild(row);
-        }
-        inner.appendChild(fragment);
-        wrapper.appendChild(inner);
-        elements.aboutModal.appendChild(wrapper);
-      }
+
 
       function initTheme() { const saved = localStorage.getItem(THEME_KEY); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const initial = (saved === 'dark' || saved === 'light') ? saved : (prefersDark ? 'dark' : 'light'); setTheme(initial); }
       function setTheme(theme) { const next = theme === 'dark' ? 'dark' : 'light'; elements.body.dataset.theme = next; localStorage.setItem(THEME_KEY, next); elements.btnTheme.textContent = next === 'dark' ? 'Light Mode' : 'Dark Mode'; }
@@ -1123,12 +1075,10 @@
 
       function stepSnap(d) { setSnap(state.index + d); }
 
-      function openAbout() { if (elements.aboutModal) { ensureBackgroundBoxes(); elements.aboutModal.classList.remove('hidden'); } }
+      function openAbout() { if (elements.aboutModal) { elements.aboutModal.classList.remove('hidden'); } }
       function closeAbout() {
         if (!elements.aboutModal) return;
         elements.aboutModal.classList.add('hidden');
-        const bg = elements.aboutModal.querySelector('.background-boxes');
-        if (bg) bg.remove();
       }
 
       elements.btnExport.addEventListener('click', e => { e.stopPropagation(); elements.exportPanel.classList.toggle('hidden'); });
